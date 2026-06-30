@@ -56,6 +56,3 @@ rsk-dashboard/.env*.local
 *.njsproj
 *.sln
 *.swp
-
-
-.gitignore
