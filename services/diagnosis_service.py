@@ -1,7 +1,7 @@
 from google import genai
 from google.genai import types
 from pydantic import BaseModel, Field
-from typing import Literal
+from typing import Literal, List
 from config import settings
 
 class DiagnosisResult(BaseModel):
@@ -14,8 +14,8 @@ class DiagnosisResult(BaseModel):
     severity_level: Literal["LOW", "MEDIUM", "HIGH"] = Field(
         description="Criticality levels based on spread and potential yield impact."
     )
-    actionable_steps: str = Field(
-        description="Highly descriptive, actionable, step-by-step remediation advice for the farmer (organic, cultural, or chemical solutions)."
+    actionable_steps: List[str] = Field(
+        description="List of highly descriptive, actionable, step-by-step remediation advice for the farmer (organic, cultural, or chemical solutions). Each item is one distinct step."
     )
     requires_expert: bool = Field(
         description="Must be set to True if severity_level is HIGH, or if the diagnosis is ambiguous, or if field inspection by a Rythu Seva Kendra (RSK) expert is needed."
@@ -75,7 +75,12 @@ class DiagnosisService:
                         disease_name="Late Blight (AI Fallback Mode)",
                         confidence=0.88,
                         severity_level="HIGH",
-                        actionable_steps="Apply copper-based fungicides immediately. Prune affected leaves and destroy them to prevent spore spread. (Generated using local rule fallback)",
+                        actionable_steps=[
+                            "Apply copper-based fungicides (Copper Oxychloride 3g/L) immediately.",
+                            "Prune all visibly infected leaves and destroy them away from the field.",
+                            "Avoid overhead irrigation to reduce leaf wetness.",
+                            "Maintain plant canopy ventilation by spacing rows adequately."
+                        ],
                         requires_expert=True
                     )
                 elif "blast" in transcript_lower or "grey center" in transcript_lower or "spindle" in transcript_lower:
@@ -83,7 +88,12 @@ class DiagnosisService:
                         disease_name="Rice Blast (AI Fallback Mode)",
                         confidence=0.81,
                         severity_level="MEDIUM",
-                        actionable_steps="Avoid excessive nitrogen fertilizers. Spray Tricyclazole at recommended doses. Keep field drained. (Generated using local rule fallback)",
+                        actionable_steps=[
+                            "Avoid excessive nitrogen fertilizers for the next 2 weeks.",
+                            "Spray Tricyclazole 75 WP at 0.6g/L water at first sign of lesions.",
+                            "Keep field well-drained; avoid waterlogging.",
+                            "Consult Rythu Seva Kendra expert if spread exceeds 30% of plants."
+                        ],
                         requires_expert=True
                     )
                 elif "yellowing" in transcript_lower or "stunted" in transcript_lower or "wrinkled" in transcript_lower:
@@ -91,7 +101,12 @@ class DiagnosisService:
                         disease_name="Minor Leafhopper damage (AI Fallback Mode)",
                         confidence=0.74,
                         severity_level="LOW",
-                        actionable_steps="No immediate chemical spray needed. Install yellow sticky traps and monitor pests weekly. (Generated using local rule fallback)",
+                        actionable_steps=[
+                            "No immediate chemical spray required at this stage.",
+                            "Install yellow sticky traps to monitor leafhopper population.",
+                            "Inspect the underside of leaves weekly for eggs or nymphs.",
+                            "Remove heavily infested plants to prevent viral spread."
+                        ],
                         requires_expert=False
                     )
                 else:
@@ -99,7 +114,12 @@ class DiagnosisService:
                         disease_name="Ambiguous Leaf Spots (AI Fallback Mode)",
                         confidence=0.68,
                         severity_level="MEDIUM",
-                        actionable_steps="Maintain field cleanliness. Inspect underside of leaves for pests, reduce watering, and consult local extension agent. (Generated using local rule fallback)",
+                        actionable_steps=[
+                            "Maintain field cleanliness and remove plant debris regularly.",
+                            "Inspect underside of leaves for pests or fungal growth.",
+                            "Reduce watering frequency to avoid moisture stress.",
+                            "Consult your local Rythu Seva Kendra (RSK) extension agent for a field visit."
+                        ],
                         requires_expert=True
                     )
             

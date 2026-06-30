@@ -44,18 +44,17 @@ async def get_expert_tickets(db: firestore.Client = Depends(get_db)):
     """
     try:
         tickets_ref = db.collection("tickets")
-        # Query Firestore where requires_expert field is explicitly True
         query = tickets_ref.where("requires_expert", "==", True)
         docs = query.stream()
         
         tickets = []
         for doc in docs:
             data = doc.to_dict()
-            # Convert datetime objects to string format for JSON serialization
             for key, val in list(data.items()):
                 if isinstance(val, datetime.datetime):
                     data[key] = val.isoformat()
-            
+                elif hasattr(val, 'isoformat'):
+                    data[key] = str(val)
             tickets.append(TicketResponse(id=doc.id, **data))
         return tickets
         
@@ -64,6 +63,44 @@ async def get_expert_tickets(db: firestore.Client = Depends(get_db)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch tickets from Firestore: {str(e)}"
         )
+
+@router.get("/tickets/all")
+async def get_all_tickets(db: firestore.Client = Depends(get_db)):
+    """
+    Returns ALL tickets from Firestore regardless of requires_expert flag,
+    ordered by created_at descending. Used by the RSK Expert Portal queue.
+    """
+    try:
+        docs = db.collection("tickets").order_by(
+            "created_at", direction=firestore.Query.DESCENDING
+        ).limit(200).stream()
+
+        tickets = []
+        for doc in docs:
+            data = doc.to_dict()
+            serialized: dict = {"id": doc.id}
+            for key, val in data.items():
+                if isinstance(val, datetime.datetime):
+                    serialized[key] = val.isoformat()
+                elif hasattr(val, 'isoformat'):
+                    serialized[key] = str(val)
+                else:
+                    serialized[key] = val
+            # Normalise field aliases between old and new diagnosis writes
+            if "problem_transcript" in serialized and "voice_transcript" not in serialized:
+                serialized["voice_transcript"] = serialized["problem_transcript"]
+            if "actionable_steps" in serialized and "remediation_steps" not in serialized:
+                serialized["remediation_steps"] = serialized["actionable_steps"]
+            tickets.append(serialized)
+
+        return {"tickets": tickets, "total": len(tickets)}
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch all tickets: {str(e)}"
+        )
+
 
 @router.patch("/tickets/{ticket_id}", response_model=dict)
 async def update_ticket_resolution(

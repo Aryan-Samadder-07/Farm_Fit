@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Navbar from '../components/Navbar';
-import { Sparkles, Cpu, Image as ImageIcon, Send, AlertCircle, RefreshCw, CheckCircle } from 'lucide-react';
+import { Sparkles, Cpu, Image as ImageIcon, Send, AlertCircle, RefreshCw, CheckCircle, MapPin, LocateFixed } from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -15,6 +15,26 @@ export default function DiagnosePage() {
   const [diagnosisResult, setDiagnosisResult] = useState<any | null>(null);
   const [isDiagnosing, setIsDiagnosing] = useState(false);
   const [diagError, setDiagError] = useState<string | null>(null);
+  const [geoLat, setGeoLat] = useState<number | null>(null);
+  const [geoLon, setGeoLon] = useState<number | null>(null);
+  const [geoStatus, setGeoStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      setGeoStatus('error');
+      return;
+    }
+    setGeoStatus('loading');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setGeoLat(parseFloat(pos.coords.latitude.toFixed(6)));
+        setGeoLon(parseFloat(pos.coords.longitude.toFixed(6)));
+        setGeoStatus('success');
+      },
+      () => setGeoStatus('error'),
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -42,8 +62,10 @@ export default function DiagnosePage() {
     const formData = new FormData();
     formData.append("farmer_name", farmerName || "Anonymous Farmer");
     formData.append("crop_type", cropType || "Unspecified Crop");
-    formData.append("voice_transcript", problemTranscript);
-    formData.append("file", selectedImage);
+    formData.append("problem_transcript", problemTranscript);
+    formData.append("image", selectedImage);
+    if (geoLat !== null) formData.append("latitude", String(geoLat));
+    if (geoLon !== null) formData.append("longitude", String(geoLon));
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/v1/diagnosis/diagnose`, {
@@ -56,7 +78,8 @@ export default function DiagnosePage() {
       }
 
       const data = await res.json();
-      setDiagnosisResult(data);
+      // Backend returns { ticket_id, diagnosis: { disease_name, confidence, ... } }
+      setDiagnosisResult({ ticket_id: data.ticket_id, ...data.diagnosis });
     } catch (err: any) {
       console.error(err);
       setDiagError(err.message || "Failed to contact diagnostic engine.");
@@ -143,6 +166,43 @@ export default function DiagnosePage() {
                 </div>
               </div>
 
+              {/* GPS Location Capture */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-300 mb-1.5">Farm Location (GPS)</label>
+                <button
+                  type="button"
+                  onClick={handleGetLocation}
+                  disabled={geoStatus === 'loading'}
+                  className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border font-bold text-sm transition cursor-pointer ${
+                    geoStatus === 'success'
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                      : geoStatus === 'error'
+                      ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                      : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-emerald-500/40 hover:text-emerald-400'
+                  }`}
+                >
+                  {geoStatus === 'loading' ? (
+                    <><RefreshCw className="h-4 w-4 animate-spin" /> Acquiring GPS signal...</>
+                  ) : geoStatus === 'success' ? (
+                    <><MapPin className="h-4 w-4" /> Location Captured ✓</>
+                  ) : geoStatus === 'error' ? (
+                    <><LocateFixed className="h-4 w-4" /> Location denied — retry</>
+                  ) : (
+                    <><LocateFixed className="h-4 w-4" /> Use My Current Location</>
+                  )}
+                </button>
+                {geoStatus === 'success' && geoLat !== null && (
+                  <p className="text-[11px] text-emerald-400/70 mt-1.5 text-center font-mono">
+                    {geoLat.toFixed(5)}° N,&nbsp;{geoLon?.toFixed(5)}° E — will be attached to this ticket
+                  </p>
+                )}
+                {geoStatus === 'error' && (
+                  <p className="text-[11px] text-rose-400/70 mt-1.5 text-center">
+                    Browser location access denied. Ticket will be logged without GPS coordinates.
+                  </p>
+                )}
+              </div>
+
               {diagError && (
                 <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 p-4 rounded-xl flex items-center gap-3 text-sm">
                   <AlertCircle className="h-5 w-5 shrink-0" />
@@ -210,7 +270,10 @@ export default function DiagnosePage() {
                   <div className="bg-slate-950 p-4 rounded-xl border border-slate-900 space-y-2">
                     <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Remediation Steps</span>
                     <ul className="space-y-2 pt-1">
-                      {diagnosisResult.actionable_steps && diagnosisResult.actionable_steps.map((step: string, idx: number) => (
+                      {(Array.isArray(diagnosisResult.actionable_steps)
+                        ? diagnosisResult.actionable_steps
+                        : String(diagnosisResult.actionable_steps).split('. ').filter(Boolean)
+                      ).map((step: string, idx: number) => (
                         <li key={idx} className="flex gap-2 text-sm text-slate-300 leading-relaxed">
                           <span className="text-emerald-400 font-bold">•</span>
                           <p>{step}</p>

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Navbar from '../components/Navbar';
-import { Cpu, RefreshCw, AlertCircle, TrendingUp, FileText } from 'lucide-react';
+import { Cpu, RefreshCw, AlertCircle, TrendingUp, FileText, MapPin, LocateFixed } from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -18,6 +18,21 @@ export default function AgronomyPage() {
   const [recError, setRecError] = useState<string | null>(null);
   const [matchedMarketData, setMatchedMarketData] = useState<any | null>(null);
   const [matchedSchemesData, setMatchedSchemesData] = useState<any | null>(null);
+  const [geoStatus, setGeoStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) { setGeoStatus('error'); return; }
+    setGeoStatus('loading');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setSoilLat(pos.coords.latitude.toFixed(6));
+        setSoilLon(pos.coords.longitude.toFixed(6));
+        setGeoStatus('success');
+      },
+      () => setGeoStatus('error'),
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
 
   const handleSoilRecommend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -154,29 +169,50 @@ export default function AgronomyPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Latitude</label>
-                  <input
-                    type="number"
-                    step="0.0001"
-                    value={soilLat}
-                    onChange={(e) => setSoilLat(e.target.value)}
-                    className="mt-1.5 w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none transition duration-150"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Longitude</label>
-                  <input
-                    type="number"
-                    step="0.0001"
-                    value={soilLon}
-                    onChange={(e) => setSoilLon(e.target.value)}
-                    className="mt-1.5 w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none transition duration-150"
-                    required
-                  />
-                </div>
+              {/* GPS Location Capture */}
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Farm Location (GPS)</label>
+                <button
+                  type="button"
+                  onClick={handleGetLocation}
+                  disabled={geoStatus === 'loading'}
+                  className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border font-bold text-sm transition cursor-pointer ${
+                    geoStatus === 'success'
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                      : geoStatus === 'error'
+                      ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                      : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-emerald-500/40 hover:text-emerald-400'
+                  }`}
+                >
+                  {geoStatus === 'loading' ? (
+                    <><RefreshCw className="h-4 w-4 animate-spin" /> Acquiring GPS signal...</>
+                  ) : geoStatus === 'success' ? (
+                    <><MapPin className="h-4 w-4" /> Location Captured ✓</>
+                  ) : geoStatus === 'error' ? (
+                    <><LocateFixed className="h-4 w-4" /> Location denied — retry</>
+                  ) : (
+                    <><LocateFixed className="h-4 w-4" /> Use My Current Location</>
+                  )}
+                </button>
+                {geoStatus === 'success' && (
+                  <p className="text-[11px] text-emerald-400/70 mt-1.5 text-center font-mono">
+                    {parseFloat(soilLat).toFixed(5)}° N,&nbsp;{parseFloat(soilLon).toFixed(5)}° E
+                  </p>
+                )}
+                {geoStatus !== 'success' && (
+                  <div className="grid grid-cols-2 gap-3 mt-2">
+                    <div>
+                      <label className="block text-[10px] text-slate-500 mb-1">Latitude (manual)</label>
+                      <input type="number" step="0.0001" value={soilLat} onChange={(e) => setSoilLat(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none transition" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-500 mb-1">Longitude (manual)</label>
+                      <input type="number" step="0.0001" value={soilLon} onChange={(e) => setSoilLon(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none transition" />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {recError && (

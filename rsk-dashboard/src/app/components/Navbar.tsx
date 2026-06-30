@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Sprout, Sparkles, Database, RefreshCw, FileText, BarChart3, Activity, Cpu } from 'lucide-react';
+import { Sprout, Sparkles, Database, RefreshCw, FileText, BarChart3, Activity, Cpu, Map } from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -32,7 +32,8 @@ export default function Navbar() {
     { name: 'AI Disease Ingestion', href: '/diagnose', icon: Sparkles },
     { name: 'Soil Advisory', href: '/agronomy', icon: Cpu },
     { name: 'Farm Analytics & Risk', href: '/analytics', icon: BarChart3 },
-    { name: 'RAG Search Engine', href: '/knowledge', icon: FileText }
+    { name: 'RAG Search Engine', href: '/knowledge', icon: FileText },
+    { name: 'GIS Disease Map', href: '/gis', icon: Map }
   ];
 
   return (

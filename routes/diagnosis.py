@@ -1,4 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, status
+from typing import Optional
 from google.cloud import firestore
 from services.diagnosis_service import DiagnosisService
 from db import get_db
@@ -11,6 +12,8 @@ async def diagnose_crop_endpoint(
     problem_transcript: str = Form(...),
     farmer_name: str = Form("Anonymous Farmer"),
     crop_type: str = Form("Unknown"),
+    latitude: Optional[float] = Form(None),
+    longitude: Optional[float] = Form(None),
     db: firestore.Client = Depends(get_db)
 ):
     """
@@ -49,6 +52,10 @@ async def diagnose_crop_endpoint(
             "status": "PENDING",
             "created_at": firestore.SERVER_TIMESTAMP
         }
+        if latitude is not None:
+            ticket_payload["latitude"] = latitude
+        if longitude is not None:
+            ticket_payload["longitude"] = longitude
         
         # Create doc ref and insert data
         tickets_ref = db.collection("tickets")
