@@ -14,8 +14,9 @@ class TicketResponse(BaseModel):
     crop_type: Optional[str] = None
     problem_transcript: Optional[str] = None
     disease_name: Optional[str] = None
-    severity: Optional[str] = None
-    actionable_remediation: Optional[str] = None
+    confidence: Optional[float] = None
+    severity_level: Optional[str] = None
+    actionable_steps: Optional[str] = None
     requires_expert: bool = True
     status: str = "PENDING"
     expert_remediation: Optional[str] = None

@@ -5,7 +5,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import expert
+from routes import expert, diagnosis, agronomy, risk, history, yield_route, knowledge, government, market
 from services.weather_alert_service import WeatherAlertService
 from db import get_db
 
@@ -58,6 +58,14 @@ app.add_middleware(
 
 # Register endpoints
 app.include_router(expert.router)
+app.include_router(diagnosis.router)
+app.include_router(agronomy.router)
+app.include_router(risk.router)
+app.include_router(history.router)
+app.include_router(yield_route.router)
+app.include_router(knowledge.router)
+app.include_router(government.router)
+app.include_router(market.router)
 
 @app.get("/")
 async def root():

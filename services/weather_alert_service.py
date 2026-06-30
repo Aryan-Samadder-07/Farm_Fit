@@ -1,6 +1,7 @@
 import asyncio
 import random
 import datetime
+import httpx
 from google.cloud import firestore
 
 class WeatherAlertService:
@@ -14,8 +15,8 @@ class WeatherAlertService:
         If matching, upserts a critical alert document in Firestore.
         """
         try:
-            # 1. Fetch IMD/Weather data (mocked)
-            weather_data = self._fetch_weather_data(latitude, longitude)
+            # 1. Fetch IMD/Weather data (live API with mock fallback)
+            weather_data = await self._fetch_weather_data(latitude, longitude)
             
             daily_rainfall = weather_data.get("daily_rainfall", [])
             temperatures = weather_data.get("temperatures", [])
@@ -75,13 +76,41 @@ class WeatherAlertService:
             # Log the error but do not raise, keeping the background loop running
             return None
 
-    def _fetch_weather_data(self, latitude: float, longitude: float) -> dict:
+    async def _fetch_weather_data(self, latitude: float, longitude: float) -> dict:
         """
-        Mock function to fetch weather data metrics from IMD endpoints.
-        For demonstration, we mock a dry-spell trigger for specific locations 
-        and normal weather for others, or randomize it.
+        Fetches historical 14-day weather metrics from the free Open-Meteo API.
+        Falls back to a local mock generator if the request fails or times out.
         """
-        # Generate weather metrics:
+        url = (
+            f"https://api.open-meteo.com/v1/forecast"
+            f"?latitude={latitude}&longitude={longitude}"
+            f"&past_days=14&daily=temperature_2m_max,rain&timezone=auto"
+        )
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, timeout=5.0)
+                if response.status_code == 200:
+                    data = response.json()
+                    daily = data.get("daily", {})
+                    # The response includes the 14 past days + today + future forecast days.
+                    # We take the first 14 elements corresponding to the past 14 days.
+                    rain = daily.get("rain", [])[:14]
+                    temps = daily.get("temperature_2m_max", [])[:14]
+                    
+                    # Ensure we have valid float values (converting None to 0.0)
+                    rain = [r if r is not None else 0.0 for r in rain]
+                    temps = [t if t is not None else 30.0 for t in temps]
+                    
+                    if len(rain) >= 14 and len(temps) >= 14:
+                        print(f"[WeatherAlertService] Successfully fetched live weather data from Open-Meteo for {latitude}, {longitude}.")
+                        return {
+                            "daily_rainfall": rain,
+                            "temperatures": temps
+                        }
+        except Exception as e:
+            print(f"[WeatherAlertService] API fetch failed ({e}). Falling back to mock generator...")
+        
+        # Generate weather metrics fallback:
         # If latitude contains decimal ending in 0.5 or 0.0, trigger dry spell, otherwise randomize
         if int(latitude * 10) % 5 == 0:
             # Consistent dry spell
