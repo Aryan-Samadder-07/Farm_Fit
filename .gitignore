@@ -48,6 +48,17 @@ rsk-dashboard/out/
 rsk-dashboard/build/
 rsk-dashboard/.env*.local
 
+# Node backend — exclude installed packages and uploaded files
+node_backend/node_modules/
+node_backend/uploads/
+node_backend/kisan_alert.db
+
+# Flutter build artifacts
+flutter_app/build/
+flutter_app/.dart_tool/
+flutter_app/.packages
+flutter_app/pubspec.lock
+
 # IDE Settings
 .vscode/
 .idea/
@@ -55,4 +66,4 @@ rsk-dashboard/.env*.local
 *.ntvs*
 *.njsproj
 *.sln
-*.swp
+*.swp

@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kisan Alert AI — Expert Portal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <!-- Leaflet CSS for Outbreak Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+    <!-- Header matching reference layout -->
+    <header id="main-header">
+        <div class="logo">
+            <span class="logo-icon">🌱</span>
+            <div class="logo-info">
+                <span class="logo-text">Kisan Alert AI</span>
+                <span class="logo-subtext">National Agricultural Intelligence & Expert Portal</span>
+            </div>
+        </div>
+        <nav class="tab-nav" id="tab-nav">
+            <button class="tab-btn" data-tab="rsk">RSK Expert Portal</button>
+            <button class="tab-btn" data-tab="disease">AI Disease Ingestion</button>
+            <button class="tab-btn" data-tab="soil">Soil Advisory</button>
+            <button class="tab-btn" data-tab="analytics">Farm Analytics & Risk</button>
+            <button class="tab-btn" data-tab="rag">RAG Search Engine</button>
+            <button class="tab-btn active" data-tab="gis">GIS Disease Map</button>
+        </nav>
+        <div class="header-right">
+            <span class="badge badge-db"><span class="dot green"></span> Firestore: Connected</span>
+            <span class="badge badge-api"><span class="dot green"></span> API: Online</span>
+        </div>
+    </header>
+
+    <main>
+
+        <!-- GIS Disease Map View -->
+        <section class="tab-panel active" id="panel-gis">
+            <div class="panel-header">
+                <div class="panel-title-area">
+                    <span class="panel-icon">🗺️</span>
+                    <div>
+                        <h2 class="panel-main-title">GIS Disease Intelligence Map</h2>
+                        <p class="panel-subtitle">Live geospatial visualization • farmer alerts • disease outbreak clusters</p>
+                    </div>
+                </div>
+                <div class="panel-actions">
+                    <span class="stat-badge"><span class="dot green"></span> 3 Farmers</span>
+                    <span class="stat-badge"><span class="dot red"></span> 2 Outbreaks</span>
+                    <span class="update-time">Updated: 13:57:32</span>
+                    <button class="btn-secondary" id="btn-refresh-map">🔄 Refresh</button>
+                    <button class="btn-primary" id="btn-register-outbreak">➕ Register Outbreak</button>
+                </div>
+            </div>
+
+            <div class="severity-legend">
+                <span class="legend-item"><span class="dot red"></span> High Severity</span>
+                <span class="legend-item"><span class="dot orange"></span> Medium Severity</span>
+                <span class="legend-item"><span class="dot green"></span> Low / Healthy</span>
+                <span class="legend-item"><span class="ring-dot"></span> 5 km Outbreak Radius</span>
+            </div>
+
+            <!-- Leaflet Container -->
+            <div class="map-container-wrapper">
+                <div id="disease-map"></div>
+            </div>
+        </section>
+
+        <!-- Farm Analytics & Risk View -->
+        <section class="tab-panel" id="panel-analytics">
+            <div class="panel-header">
+                <div class="panel-title-area">
+                    <span class="panel-icon">📊</span>
+                    <div>
+                        <h2 class="panel-main-title">Farm Risk & Analytics Dashboard</h2>
+                        <p class="panel-subtitle">Multi-dimensional diagnostic vectors and historical harvest projections</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="analytics-layout">
+                <!-- Left Sidebar: Meter & Matrices -->
+                <div class="analytics-sidebar">
+                    <div class="glass-card risk-meter-card">
+                        <div class="risk-gauge-wrapper">
+                            <svg class="progress-ring" width="140" height="140">
+                                <circle class="progress-ring__circle-bg" stroke="#1c2c22" stroke-width="12" fill="transparent" r="54" cx="70" cy="70"/>
+                                <circle class="progress-ring__circle" stroke="#fbbf24" stroke-width="12" fill="transparent" r="54" cx="70" cy="70" stroke-dasharray="339.292" stroke-dashoffset="105"/>
+                            </svg>
+                            <div class="gauge-value">
+                                <span class="gauge-num">69</span>
+                                <span class="gauge-label">INDEX</span>
+                            </div>
+                        </div>
+                        <span class="badge badge-warning">Risk Category: Warning</span>
+                        <div class="ai-insights-box">
+                            <span class="insight-title">✨ AI Insights:</span>
+                            <p class="insight-desc">"Active crop disease with MEDIUM severity (-25 points). Excellent soil chemistry (N-P-K-pH score: 25.0/25). Recurring crop disease incidents detected in history (-6 points)."</p>
+                        </div>
+                    </div>
+
+                    <div class="glass-card risk-matrix-card">
+                        <h3 class="card-section-title">Multi-Dimensional Risk Matrix</h3>
+                        <div class="matrix-list">
+                            <div class="matrix-item">
+                                <span>Climate Risk</span>
+                                <span class="status-text green-text">Low Risk</span>
+                            </div>
+                            <div class="bar-container"><div class="bar green-bar" style="width: 25%"></div></div>
+                            
+                            <div class="matrix-item">
+                                <span>Disease Vector Risk</span>
+                                <span class="status-text red-text">Critical</span>
+                            </div>
+                            <div class="bar-container"><div class="bar red-bar" style="width: 90%"></div></div>
+
+                            <div class="matrix-item">
+                                <span>Soil Quality Index</span>
+                                <span class="status-text green-text">Optimal (25/25)</span>
+                            </div>
+                            <div class="bar-container"><div class="bar green-bar" style="width: 100%"></div></div>
+
+                            <div class="matrix-item">
+                                <span>Historical Incidents Penalty</span>
+                                <span class="status-text orange-text">6 pts</span>
+                            </div>
+                            <div class="bar-container"><div class="bar orange-bar" style="width: 45%"></div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Side: Cards & Logs -->
+                <div class="analytics-content">
+                    <div class="cards-row">
+                        <div class="glass-card crop-status-card">
+                            <div class="card-row">
+                                <div>
+                                    <h4 class="crop-title">Tomato (Current)</h4>
+                                    <p class="crop-yield">11.2 <span class="unit">Tonnes</span></p>
+                                    <p class="harvest-days">📅 Expected Harvest: <span class="highlight">35 days</span></p>
+                                </div>
+                                <div class="right-align">
+                                    <span class="conf-badge">85% Conf.</span>
+                                    <p class="est-revenue">₹140,000</p>
+                                    <span class="rev-label">Est. Revenue</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="glass-card crop-status-card">
+                            <div class="card-row">
+                                <div>
+                                    <h4 class="crop-title">Chilli (Planning)</h4>
+                                    <p class="crop-yield">3.8 <span class="unit">Tonnes</span></p>
+                                    <p class="harvest-days">📅 Expected Harvest: <span class="highlight">110 days</span></p>
+                                </div>
+                                <div class="right-align">
+                                    <span class="conf-badge">72% Conf.</span>
+                                    <p class="est-revenue">₹190,000</p>
+                                    <span class="rev-label">Est. Revenue</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="glass-card logs-table-card">
+                        <h3 class="card-section-title">📋 Previous Crop Season Logs</h3>
+                        <table class="logs-table">
+                            <thead>
+                                <tr>
+                                    <th>Season</th>
+                                    <th>Crop</th>
+                                    <th>Area</th>
+                                    <th>Yield</th>
+                                    <th>Income</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Kharif 2023</td>
+                                    <td>Rice</td>
+                                    <td>2.5 Acres</td>
+                                    <td>5.2 T</td>
+                                    <td class="green-text">₹115,000</td>
+                                    <td><span class="table-badge status-harvested">Harvested</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Rabi 2023</td>
+                                    <td>Maize</td>
+                                    <td>2.5 Acres</td>
+                                    <td>6.8 T</td>
+                                    <td class="green-text">₹128,000</td>
+                                    <td><span class="table-badge status-harvested">Harvested</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Kharif 2024</td>
+                                    <td>Tomato</td>
+                                    <td>1.5 Acres</td>
+                                    <td>14.5 T</td>
+                                    <td class="green-text">₹185,000</td>
+                                    <td><span class="table-badge status-harvested">Harvested</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Rabi 2024</td>
+                                    <td>Tomato</td>
+                                    <td>1.5 Acres</td>
+                                    <td>8.2 T</td>
+                                    <td class="green-text">₹92,000</td>
+                                    <td><span class="table-badge status-damaged">Damaged by Pest</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ingestion Timeline -->
+            <div class="glass-card timeline-card">
+                <h3 class="card-section-title">⚡ Diagnostic Ingestion Timeline</h3>
+                <div class="timeline-container">
+                    <div class="timeline-item">
+                        <div class="timeline-marker orange-marker"></div>
+                        <div class="timeline-details">
+                            <p class="timeline-title">Ambiguous Leaf Spots (AI Fallback Mode) <span class="crop-label">on Maize</span></p>
+                            <div class="timeline-meta">
+                                <span class="badge badge-medium">Medium Severity</span>
+                                <span class="meta-desc">AI Confidence: 68%</span>
+                            </div>
+                        </div>
+                        <span class="timeline-date">2026-06-30</span>
+                        <span class="status-btn pending">Pending</span>
+                    </div>
+
+                    <div class="timeline-item">
+                        <div class="timeline-marker orange-marker"></div>
+                        <div class="timeline-details">
+                            <p class="timeline-title">Ambiguous Leaf Spots (AI Fallback Mode) <span class="crop-label">on Corn</span></p>
+                            <div class="timeline-meta">
+                                <span class="badge badge-medium">Medium Severity</span>
+                                <span class="meta-desc">AI Confidence: 68%</span>
+                            </div>
+                        </div>
+                        <span class="timeline-date">2026-06-30</span>
+                        <span class="status-btn pending">Pending</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dummy/Stubs for remaining tabs -->
+        <section class="tab-panel" id="panel-rsk">
+            <div class="glass-card">
+                <h2>RSK Expert Portal</h2>
+                <p class="tab-stub-desc">This module is reserved for direct interaction between field coordinators and agriculture scientists. Diagnostic inputs are queued here for manual verification.</p>
+            </div>
+        </section>
+
+        <section class="tab-panel" id="panel-disease">
+            <div class="glass-card">
+                <h2>AI Disease Ingestion</h2>
+                <p class="tab-stub-desc">Ingestion pipe for visual neural networks. Image attachments uploaded from the mobile application are processed here for automated pathogens detection.</p>
+            </div>
+        </section>
+
+        <section class="tab-panel" id="panel-soil">
+            <div class="glass-card">
+                <h2>Soil Advisory</h2>
+                <p class="tab-stub-desc">NPK and pH sensor telemetry dashboards. Monitors soil moisture, chemical composition, and sends warnings to agricultural experts.</p>
+            </div>
+        </section>
+
+        <section class="tab-panel" id="panel-rag">
+            <div class="glass-card">
+                <h2>RAG Search Engine</h2>
+                <p class="tab-stub-desc">Semantic search over agricultural logs, district guidelines, and historic advisory bulletins powered by vector storage search queries.</p>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="/static/app.js"></script>
+</body>
+</html>
