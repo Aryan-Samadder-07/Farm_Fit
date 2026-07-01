@@ -227,6 +227,61 @@ export default function AnalyticsPage() {
                 </div>
               </div>
 
+              {/* NDVI Sentinel-2 Satellite Intelligence Module */}
+              <div className="bg-slate-900/40 border border-slate-800 p-6 rounded-2xl backdrop-blur-md space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <h3 className="text-sm font-extrabold text-slate-400 uppercase tracking-wider">NDVI Satellite Monitoring</h3>
+                  </div>
+                  <span className="text-[9px] bg-slate-950 border border-slate-800 text-slate-400 px-2 py-0.5 rounded font-mono">
+                    Sentinel-2 L2A
+                  </span>
+                </div>
+
+                <div className="bg-slate-950 p-4 rounded-xl border border-slate-850 space-y-3">
+                  <div className="flex justify-between items-center border-b border-slate-900 pb-2">
+                    <span className="text-xs text-slate-500">Latest Canopy Index (NDVI)</span>
+                    <span className="text-xs font-mono font-bold text-emerald-400">0.71 (Optimal)</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 text-xs pt-1">
+                    <div>
+                      <span className="text-slate-500 block">Resolution</span>
+                      <span className="font-semibold text-slate-300">10m Multispectral</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Last Satellite Pass</span>
+                      <span className="font-semibold text-slate-300">24 hours ago</span>
+                    </div>
+                  </div>
+
+                  {/* NDVI Trend Graph */}
+                  <div className="pt-2">
+                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-2">Vegetation Index Trend</span>
+                    <div className="flex items-end justify-between h-20 px-2 pt-2 border-b border-slate-900 border-l">
+                      {[
+                        { val: 0.32, month: 'Mar' },
+                        { val: 0.48, month: 'Apr' },
+                        { val: 0.65, month: 'May' },
+                        { val: 0.72, month: 'Jun' },
+                        { val: 0.71, month: 'Jul' }
+                      ].map((item, i) => (
+                        <div key={i} className="flex flex-col items-center flex-1 group relative">
+                          <div className="w-4 bg-emerald-500/20 group-hover:bg-emerald-500/40 rounded-t transition-all duration-300" 
+                               style={{ height: `${item.val * 70}px` }}>
+                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 bg-slate-900 text-[9px] text-emerald-400 font-bold px-1 py-0.5 rounded border border-slate-800 opacity-0 group-hover:opacity-100 transition whitespace-nowrap pointer-events-none mb-1">
+                              {item.val}
+                            </div>
+                          </div>
+                          <span className="text-[9px] text-slate-500 mt-1 font-mono">{item.month}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Right Column: Historical Timelines & Yield Projections */}
               <div className="lg:col-span-2 space-y-6">
                 

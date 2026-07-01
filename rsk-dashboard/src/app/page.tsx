@@ -36,7 +36,34 @@ export default function RSKDashboard() {
   const [filterTab, setFilterTab] = useState<'ALL' | 'PENDING' | 'HIGH_SEVERITY' | 'RESOLVED'>('ALL');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isAutofilling, setIsAutofilling] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  const handleAutofill = async () => {
+    if (!selectedTicket) return;
+    setIsAutofilling(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/v1/admin/autofill-advisory`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          disease_name: selectedTicket.disease_name,
+          crop_type: selectedTicket.crop_type,
+          severity_level: selectedTicket.severity_level,
+          voice_transcript: getTranscript(selectedTicket)
+        })
+      });
+      const data = await res.json();
+      if (data.advisory) {
+        setRemediationText(data.advisory);
+        showToast('AI advisory suggestion loaded — review before saving.');
+      }
+    } catch {
+      showToast('AI autofill failed. Please write the advisory manually.', 'error');
+    } finally {
+      setIsAutofilling(false);
+    }
+  };
 
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToastMessage({ text, type });
@@ -142,14 +169,15 @@ export default function RSKDashboard() {
     return matchSearch;
   });
 
-  const getSteps = (t: Ticket): string[] => {
+  function getSteps(t: Ticket): string[] {
     const steps = t.remediation_steps || t.actionable_steps || [];
     if (Array.isArray(steps)) return steps;
     return String(steps).split('. ').filter(Boolean);
-  };
+  }
 
-  const getTranscript = (t: Ticket): string =>
-    t.voice_transcript || t.problem_transcript || '—';
+  function getTranscript(t: Ticket): string {
+    return t.voice_transcript || t.problem_transcript || '—';
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
@@ -307,7 +335,20 @@ export default function RSKDashboard() {
                   )}
 
                   <div>
-                    <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1.5">Expert Advisory Notes</label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider">Expert Advisory Notes</label>
+                      <button
+                        type="button"
+                        onClick={handleAutofill}
+                        disabled={isAutofilling}
+                        className="flex items-center gap-1 text-[10px] font-bold text-violet-400 hover:text-violet-300 border border-violet-500/20 bg-violet-500/10 px-2 py-1 rounded-lg transition cursor-pointer disabled:opacity-50"
+                      >
+                        {isAutofilling
+                          ? <><RefreshCw className="h-3 w-3 animate-spin" /> Generating…</>
+                          : <><Sparkles className="h-3 w-3" /> AI Autofill</>
+                        }
+                      </button>
+                    </div>
                     <textarea rows={4} placeholder="Add specific field instructions for the farmer…"
                       value={remediationText} onChange={e => setRemediationText(e.target.value)}
                       className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none transition resize-none leading-relaxed" />
