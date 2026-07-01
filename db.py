@@ -1,17 +1,85 @@
 from google.cloud import firestore
 from config import settings
+import logging
+
+logger = logging.getLogger("db")
 
 _db_client = None
+_mock_sync_db_client = None
 
-def get_db() -> firestore.Client:
+
+def _build_mock_sync_client():
     """
-    Initializes and returns a singleton instance of the Firestore Client.
-    Uses the project ID and database configured in settings.
-    Automatically resolves credentials via standard GCP methods.
+    Lightweight synchronous mock Firestore client for local dev (MOCK_GCP_APIS=True).
     """
-    global _db_client
+    import uuid
+
+    class _MockDocRef:
+        def __init__(self, doc_id: str):
+            self.id = doc_id
+
+        def set(self, data: dict, merge: bool = False):
+            logger.info(f"[Mock SyncDB] SET {self.id}: {data}")
+            return {"update_time": "mock-time"}
+
+        def update(self, data: dict):
+            logger.info(f"[Mock SyncDB] UPDATE {self.id}: {data}")
+
+        class _Query:
+            def stream(self):
+                return iter([])
+            def where(self, *a, **kw):
+                return self
+            def order_by(self, *a, **kw):
+                return self
+            def limit(self, *a, **kw):
+                return self
+
+    class _MockCollection:
+        def __init__(self, name: str):
+            self.name = name
+
+        def document(self, doc_id: str = None) -> "_MockDocRef":
+            return _MockDocRef(doc_id or str(uuid.uuid4()))
+
+        def add(self, data: dict):
+            doc_id = str(uuid.uuid4())
+            logger.info(f"[Mock SyncDB] ADD {self.name}/{doc_id}: {data}")
+            return None, _MockDocRef(doc_id)
+
+        def where(self, *a, **kw):
+            return _MockDocRef._Query()
+
+        def order_by(self, *a, **kw):
+            return _MockDocRef._Query()
+
+        def stream(self):
+            return iter([])
+
+    class _MockFirestoreClient:
+        class Query:
+            DESCENDING = "DESCENDING"
+
+        def collection(self, name: str) -> "_MockCollection":
+            return _MockCollection(name)
+
+    return _MockFirestoreClient()
+
+
+def get_db():
+    """
+    Returns a singleton Firestore Client (sync).
+    Falls back to a mock client when MOCK_GCP_APIS=True (no GCP credentials needed).
+    """
+    global _db_client, _mock_sync_db_client
+
+    if settings.MOCK_GCP_APIS:
+        if _mock_sync_db_client is None:
+            _mock_sync_db_client = _build_mock_sync_client()
+            logger.info("[db.py] Mock sync Firestore client initialized.")
+        return _mock_sync_db_client
+
     if _db_client is None:
-        # Initialize client with optional project and database specifications
         project = settings.google_cloud_project or None
         database = settings.firestore_database or "(default)"
         _db_client = firestore.Client(project=project, database=database)
