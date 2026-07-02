@@ -11,6 +11,8 @@ router = APIRouter(prefix="/api/v1/expert", tags=["Expert Panel"])
 class TicketResponse(BaseModel):
     id: str
     farmer_name: Optional[str] = None
+    phone_number: Optional[str] = None
+    village_name: Optional[str] = None
     crop_type: Optional[str] = None
     problem_transcript: Optional[str] = None
     disease_name: Optional[str] = None
@@ -22,10 +24,13 @@ class TicketResponse(BaseModel):
     expert_remediation: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+    assigned_to: Optional[str] = None
+    assigned_phone: Optional[str] = None
+    on_hold: Optional[bool] = None
 
 class TicketUpdatePayload(BaseModel):
-    status: str = Field(
-        ..., 
+    status: Optional[str] = Field(
+        None, 
         description="The updated state of the ticket, typically 'RESOLVED', 'IN_PROGRESS', or 'PENDING'."
     )
     expert_remediation: Optional[str] = Field(
@@ -35,6 +40,18 @@ class TicketUpdatePayload(BaseModel):
     requires_expert: Optional[bool] = Field(
         None, 
         description="Flags whether the ticket still needs to remain in the active expert worklist."
+    )
+    assigned_to: Optional[str] = Field(
+        None,
+        description="Name of the expert assigned to the ticket."
+    )
+    assigned_phone: Optional[str] = Field(
+        None,
+        description="Phone number of the assigned expert."
+    )
+    on_hold: Optional[bool] = Field(
+        None,
+        description="Flags if the ticket is placed on hold for on-site visit."
     )
 
 @router.get("/tickets", response_model=List[TicketResponse])
@@ -102,6 +119,41 @@ async def get_all_tickets(db: firestore.Client = Depends(get_db)):
         )
 
 
+@router.get("/tickets/{ticket_id}")
+async def get_single_ticket(ticket_id: str, db: firestore.Client = Depends(get_db)):
+    """
+    Retrieves a single ticket by its ID from the Firestore 'tickets' collection.
+    """
+    try:
+        doc = db.collection("tickets").document(ticket_id).get()
+        if not doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail="Ticket does not exist"
+            )
+        data = doc.to_dict()
+        serialized = {"id": doc.id}
+        for key, val in data.items():
+            if isinstance(val, datetime.datetime):
+                serialized[key] = val.isoformat()
+            elif hasattr(val, 'isoformat'):
+                serialized[key] = str(val)
+            else:
+                serialized[key] = val
+        if "problem_transcript" in serialized and "voice_transcript" not in serialized:
+            serialized["voice_transcript"] = serialized["problem_transcript"]
+        if "actionable_steps" in serialized and "remediation_steps" not in serialized:
+            serialized["remediation_steps"] = serialized["actionable_steps"]
+        return serialized
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve ticket: {str(e)}"
+        )
+
+
 @router.patch("/tickets/{ticket_id}", response_model=dict)
 async def update_ticket_resolution(
     ticket_id: str, 
@@ -129,10 +181,53 @@ async def update_ticket_resolution(
             update_data["expert_remediation"] = payload.expert_remediation
         if payload.requires_expert is not None:
             update_data["requires_expert"] = payload.requires_expert
+        if payload.assigned_to is not None:
+            update_data["assigned_to"] = payload.assigned_to
+        if payload.assigned_phone is not None:
+            update_data["assigned_phone"] = payload.assigned_phone
+        if payload.on_hold is not None:
+            update_data["on_hold"] = payload.on_hold
             
         update_data["updated_at"] = firestore.SERVER_TIMESTAMP
         
         ticket_ref.update(update_data)
+
+        # Trigger farmer notification if ticket is placed on hold for on-site visit
+        if payload.on_hold is True:
+            ticket_doc = doc.to_dict() or {}
+            farmer_phone = ticket_doc.get("phone_number")
+            farmer_name = ticket_doc.get("farmer_name") or "Farmer"
+            
+            expert_name = payload.assigned_to or ticket_doc.get("assigned_to") or "RSK Expert"
+            expert_phone = payload.assigned_phone or ticket_doc.get("assigned_phone") or "Rythu Seva Kendra"
+            
+            # Format requirements: "RSK expert visit in next 24 hours", "contact RSK expert to fix the time and location"
+            notification_message = (
+                f"Dear {farmer_name}, an RSK expert visit has been scheduled for your farm in the next 24 hours. "
+                f"Please contact RSK expert {expert_name} at {expert_phone} to fix the exact time and location."
+            )
+            
+            # Send Twilio SMS and WhatsApp (mock or real)
+            from services.notification_service import NotificationService
+            notifier = NotificationService(db)
+            if farmer_phone:
+                await notifier.send_alert_bundle(
+                    phone_number=farmer_phone,
+                    message=notification_message,
+                    channels=["sms", "whatsapp"]
+                )
+            
+            # Store in-app alert for the farmer
+            alerts_ref = db.collection("alerts")
+            alerts_ref.add({
+                "type": "ON_SITE_VISIT",
+                "title": f"On-Site Field Visit Scheduled - {ticket_doc.get('crop_type', 'Crop')}",
+                "message": notification_message,
+                "severity": "HIGH",
+                "created_at": datetime.datetime.utcnow().isoformat() + "Z",
+                "delivered": False
+            })
+
         return {
             "status": "success", 
             "message": f"Ticket {ticket_id} successfully updated."

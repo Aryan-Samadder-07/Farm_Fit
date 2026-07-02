@@ -20,6 +20,10 @@ class SchemeService:
         Recommends state and national government assistance schemes based on farmer demographic and crop metrics.
         """
         schemes = []
+        
+        # Clean crop_type of any fallback debugging suffixes
+        crop_clean = crop_type.replace(" (AI Fallback Mode)", "").strip()
+        crop_lower = crop_clean.lower()
 
         # 1. PM-KISAN (National Scheme)
         if farm_size_acres <= 5.0:  # typically targets small/marginal farmers
@@ -32,7 +36,6 @@ class SchemeService:
             })
 
         # 2. PM Fasal Bima Yojana (Crop Insurance)
-        crop_lower = crop_type.lower()
         if crop_lower in ["rice", "maize", "tomato", "cotton"]:
             schemes.append({
                 "scheme_name": "PMFBY (Pradhan Mantri Fasal Bima Yojana)",

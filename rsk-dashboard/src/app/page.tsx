@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import Navbar from './components/Navbar';
+import { useAuth } from './context/AuthContext';
 import {
   Sprout, AlertTriangle, CheckCircle, Clock, Search,
-  User, Calendar, Send, Check, X, Sparkles, RefreshCw
+  User, Calendar, RefreshCw, Sparkles, MapPin, Phone
 } from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
@@ -12,6 +14,8 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
 interface Ticket {
   id: string;
   farmer_name?: string;
+  phone_number?: string;
+  village_name?: string;
   crop_type?: string;
   disease_name?: string;
   confidence?: number;
@@ -25,52 +29,28 @@ interface Ticket {
   expert_notes?: string;
   expert_remediation?: string;
   requires_expert?: boolean;
+  assigned_to?: string;
+  assigned_phone?: string;
+  on_hold?: boolean;
+  images?: string[];
 }
 
 export default function RSKDashboard() {
+  const router = useRouter();
+  const { user } = useAuth();
+  
   const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
-  const [remediationText, setRemediationText] = useState('');
-  const [newStatus, setNewStatus] = useState<string>('RESOLVED');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterTab, setFilterTab] = useState<'ALL' | 'PENDING' | 'HIGH_SEVERITY' | 'RESOLVED'>('ALL');
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isAutofilling, setIsAutofilling] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterTab, setFilterTab] = useState<'ALL' | 'PENDING' | 'IN_PROGRESS' | 'ON_HOLD' | 'HIGH_SEVERITY'>('ALL');
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
-
-  const handleAutofill = async () => {
-    if (!selectedTicket) return;
-    setIsAutofilling(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/admin/autofill-advisory`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          disease_name: selectedTicket.disease_name,
-          crop_type: selectedTicket.crop_type,
-          severity_level: selectedTicket.severity_level,
-          voice_transcript: getTranscript(selectedTicket)
-        })
-      });
-      const data = await res.json();
-      if (data.advisory) {
-        setRemediationText(data.advisory);
-        showToast('AI advisory suggestion loaded — review before saving.');
-      }
-    } catch {
-      showToast('AI autofill failed. Please write the advisory manually.', 'error');
-    } finally {
-      setIsAutofilling(false);
-    }
-  };
 
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToastMessage({ text, type });
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // ── Fetch all tickets from backend API ──────────────────────────────────────
+  // Fetch all tickets from backend API
   const fetchTickets = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -86,9 +66,16 @@ export default function RSKDashboard() {
     }
   }, []);
 
-  useEffect(() => { fetchTickets(); }, [fetchTickets]);
+  useEffect(() => {
+    fetchTickets();
+  }, [fetchTickets]);
 
-  // ── Generate simulated ticket ────────────────────────────────────────────────
+  // Navigate to detailed review page
+  const handleSelectTicket = (ticket: Ticket) => {
+    router.push(`/review/${ticket.id}`);
+  };
+
+  // Generate simulated ticket
   const handleGenerateMockTicket = async () => {
     const names = ['Ramesh Kurva', 'Srinivas Rao', 'Chandra Babu', 'Subba Reddy', 'Murali Mohan'];
     const crops = ['Tomato', 'Rice', 'Cotton', 'Maize', 'Chilli'];
@@ -103,6 +90,8 @@ export default function RSKDashboard() {
     const mockTicket: Ticket = {
       id: `sim_${Date.now()}`,
       farmer_name: names[Math.floor(Math.random() * names.length)],
+      phone_number: '+919876543210',
+      village_name: 'Podalakur Mandal',
       crop_type: crops[Math.floor(Math.random() * crops.length)],
       disease_name: d.name,
       confidence: parseFloat((0.75 + Math.random() * 0.2).toFixed(2)),
@@ -111,73 +100,55 @@ export default function RSKDashboard() {
       status: 'PENDING',
       created_at: new Date().toISOString(),
       remediation_steps: d.steps,
+      images: ['/media__1782798295887.png']
     };
 
     setTickets(prev => [mockTicket, ...prev]);
     showToast('Simulated farmer alert added to queue.');
   };
 
-  // ── Save expert resolution via PATCH API ─────────────────────────────────────
-  const handleResolveTicket = async () => {
-    if (!selectedTicket) return;
-    setIsSaving(true);
-    try {
-      // Only call API for real (non-simulated) tickets
-      if (!selectedTicket.id.startsWith('sim_')) {
-        const res = await fetch(`${API_BASE_URL}/api/v1/expert/tickets/${selectedTicket.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            status: newStatus,
-            expert_remediation: remediationText,
-          }),
-        });
-        if (!res.ok) throw new Error(`Update failed: ${res.status}`);
-      }
-
-      // Update local state immediately
-      const updated = { ...selectedTicket, status: newStatus, expert_remediation: remediationText, expert_notes: remediationText };
-      setTickets(prev => prev.map(t => t.id === selectedTicket.id ? updated : t));
-      setSelectedTicket(updated);
-      showToast(`Ticket status updated to ${newStatus}.`);
-    } catch (err: any) {
-      showToast(err.message || 'Failed to save resolution.', 'error');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // ── Stats ────────────────────────────────────────────────────────────────────
+  // Stats calculation (Excluding resolved tickets from active queue counts where necessary)
   const stats = {
-    total: tickets.length,
+    total: tickets.filter(t => t.status !== 'RESOLVED').length,
     pending: tickets.filter(t => (t.status || 'PENDING') === 'PENDING').length,
-    highSeverity: tickets.filter(t => t.severity_level === 'HIGH' && (t.status || 'PENDING') !== 'RESOLVED').length,
-    resolved: tickets.filter(t => t.status === 'RESOLVED').length,
+    highSeverity: tickets.filter(t => t.severity_level === 'HIGH' && t.status !== 'RESOLVED').length,
+    inProgress: tickets.filter(t => t.status === 'IN_PROGRESS').length,
   };
 
-  // ── Filtered list ─────────────────────────────────────────────────────────────
+  // Filtered ticket queue list
   const filteredTickets = tickets.filter(t => {
+    // 1. Resolved tickets should NOT show up in the RSK Portal at all
+    if (t.status === 'RESOLVED') return false;
+
+    // 2. Perform search match query
     const q = searchQuery.toLowerCase();
     const matchSearch =
       (t.farmer_name || '').toLowerCase().includes(q) ||
       (t.crop_type || '').toLowerCase().includes(q) ||
       (t.disease_name || '').toLowerCase().includes(q);
+
+    if (!matchSearch) return false;
+
     const s = t.status || 'PENDING';
-    if (filterTab === 'PENDING') return matchSearch && s === 'PENDING';
-    if (filterTab === 'HIGH_SEVERITY') return matchSearch && t.severity_level === 'HIGH' && s !== 'RESOLVED';
-    if (filterTab === 'RESOLVED') return matchSearch && s === 'RESOLVED';
-    return matchSearch;
+    const isAssignedToMe = user ? t.assigned_to === user.name : false;
+
+    // 3. Tab filter rules
+    if (filterTab === 'PENDING') {
+      return s === 'PENDING';
+    }
+    // In-Progress and On-Hold only show if assigned to you
+    if (filterTab === 'IN_PROGRESS') {
+      return s === 'IN_PROGRESS' && isAssignedToMe && !t.on_hold;
+    }
+    if (filterTab === 'ON_HOLD') {
+      return s === 'IN_PROGRESS' && isAssignedToMe && t.on_hold === true;
+    }
+    if (filterTab === 'HIGH_SEVERITY') {
+      return t.severity_level === 'HIGH';
+    }
+
+    return true; // 'ALL' tab shows all active non-resolved tickets
   });
-
-  function getSteps(t: Ticket): string[] {
-    const steps = t.remediation_steps || t.actionable_steps || [];
-    if (Array.isArray(steps)) return steps;
-    return String(steps).split('. ').filter(Boolean);
-  }
-
-  function getTranscript(t: Ticket): string {
-    return t.voice_transcript || t.problem_transcript || '—';
-  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
@@ -202,10 +173,10 @@ export default function RSKDashboard() {
         {/* Stats Cards */}
         <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { label: 'Total Alerts Received', value: stats.total, color: 'text-slate-100' },
+            { label: 'Active Alerts Received', value: stats.total, color: 'text-slate-100' },
             { label: 'Pending Expert Action', value: stats.pending, color: 'text-amber-400' },
             { label: 'High Severity Blights', value: stats.highSeverity, color: 'text-rose-400' },
-            { label: 'Resolved Advisory', value: stats.resolved, color: 'text-emerald-400' },
+            { label: 'Currently In-Progress', value: stats.inProgress, color: 'text-emerald-400' },
           ].map(({ label, value, color }) => (
             <div key={label} className="bg-slate-900/40 border border-slate-800/80 p-5 rounded-2xl backdrop-blur-sm hover:border-slate-700 transition">
               <p className="text-slate-400 text-sm font-medium">{label}</p>
@@ -217,12 +188,12 @@ export default function RSKDashboard() {
         {/* Filter Bar */}
         <section className="flex flex-col md:flex-row gap-4 items-center justify-between bg-slate-900/20 border border-slate-800/60 p-4 rounded-2xl">
           <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-900 overflow-x-auto w-full md:w-auto">
-            {(['ALL', 'PENDING', 'HIGH_SEVERITY', 'RESOLVED'] as const).map((tab) => (
+            {(['ALL', 'PENDING', 'IN_PROGRESS', 'ON_HOLD', 'HIGH_SEVERITY'] as const).map((tab) => (
               <button key={tab} onClick={() => setFilterTab(tab)}
                 className={`px-4 py-2 text-xs font-bold rounded-lg transition shrink-0 cursor-pointer ${
                   filterTab === tab ? 'bg-slate-900 text-emerald-400 shadow-md border border-slate-800' : 'text-slate-400 hover:text-slate-300'
                 }`}>
-                {tab.replace('_', ' ')}
+                {tab === 'IN_PROGRESS' ? 'IN PROGRESS' : tab === 'ON_HOLD' ? 'ON HOLD' : tab.replace('_', ' ')}
               </button>
             ))}
           </div>
@@ -234,155 +205,70 @@ export default function RSKDashboard() {
           </div>
         </section>
 
-        {/* Queue + Drawer */}
-        <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Centered Ticket List Queue */}
+        <section className="max-w-3xl mx-auto space-y-4">
+          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">Active Ticket Queue</h3>
 
-          {/* Ticket List */}
-          <div className="lg:col-span-2 space-y-3">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">Active Ticket Queue</h3>
-
-            {isLoading ? (
-              <div className="text-center py-16 text-slate-500 text-sm">
-                <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-3 text-emerald-500/50" />
-                Loading tickets from server…
-              </div>
-            ) : filteredTickets.length > 0 ? (
-              filteredTickets.map(ticket => {
-                const status = ticket.status || 'PENDING';
-                const severity = ticket.severity_level || 'LOW';
-                return (
-                  <div key={ticket.id}
-                    onClick={() => { setSelectedTicket(ticket); setRemediationText(ticket.expert_remediation || ticket.expert_notes || ''); setNewStatus(status); }}
-                    className={`bg-slate-900/40 border p-5 rounded-2xl cursor-pointer transition relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group ${
-                      selectedTicket?.id === ticket.id ? 'border-emerald-500 bg-slate-900/80' : 'border-slate-800 hover:border-slate-700'
-                    }`}>
-                    <div className="space-y-2 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
-                          severity === 'HIGH' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
-                          severity === 'MEDIUM' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                          'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                        }`}>{severity} SEVERITY</span>
-                        <span className="text-slate-400 text-xs font-semibold">{ticket.crop_type || 'Unknown Crop'}</span>
-                      </div>
-                      <h4 className="text-base font-extrabold text-slate-200 truncate">
-                        {ticket.disease_name || 'Unknown Disease'}{' '}
-                        {ticket.confidence !== undefined && (
-                          <span className="text-xs text-slate-500 font-normal">({Math.round(ticket.confidence * 100)}% AI confidence)</span>
-                        )}
-                      </h4>
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
-                        <span className="flex items-center gap-1"><User className="h-3.5 w-3.5" />{ticket.farmer_name || 'Anonymous'}</span>
-                        {ticket.created_at && (
-                          <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />
-                            {new Date(ticket.created_at).toLocaleDateString()}
-                          </span>
-                        )}
-                      </div>
+          {isLoading ? (
+            <div className="text-center py-16 text-slate-500 text-sm">
+              <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-3 text-emerald-500/50" />
+              Loading active tickets...
+            </div>
+          ) : filteredTickets.length > 0 ? (
+            filteredTickets.map(ticket => {
+              const status = ticket.status || 'PENDING';
+              const severity = ticket.severity_level || 'LOW';
+              return (
+                <div key={ticket.id}
+                  onClick={() => handleSelectTicket(ticket)}
+                  className="bg-slate-900/40 border border-slate-800 p-5 rounded-2xl cursor-pointer hover:border-emerald-500/40 hover:bg-slate-900/60 transition relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group"
+                >
+                  <div className="space-y-2 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                        severity === 'HIGH' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                        severity === 'MEDIUM' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                        'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                      }`}>{severity} SEVERITY</span>
+                      <span className="text-slate-400 text-xs font-semibold">{ticket.crop_type || 'Unknown Crop'}</span>
+                      {ticket.on_hold && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded border bg-amber-500/10 text-amber-400 border-amber-500/20">
+                          ON-SITE VISIT
+                        </span>
+                      )}
                     </div>
-                    <span className={`text-xs font-extrabold px-3 py-1.5 rounded-xl border shrink-0 ${
-                      status === 'RESOLVED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                      status === 'IN_PROGRESS' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                      'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                    }`}>{status}</span>
+                    <h4 className="text-base font-extrabold text-slate-200 truncate">
+                      {ticket.disease_name || 'Unknown Disease'}{' '}
+                      {ticket.confidence !== undefined && (
+                        <span className="text-xs text-slate-500 font-normal">({Math.round(ticket.confidence * 100)}% AI confidence)</span>
+                      )}
+                    </h4>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                      <span className="flex items-center gap-1"><User className="h-3.5 w-3.5" />{ticket.farmer_name || 'Anonymous'}</span>
+                      {ticket.created_at && (
+                        <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />
+                          {new Date(ticket.created_at).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                );
-              })
-            ) : (
-              <div className="text-center py-24 bg-slate-900/10 border border-slate-800/40 rounded-3xl">
-                <Sprout className="h-10 w-10 text-slate-700 mx-auto mb-3 stroke-1" />
-                <h3 className="text-lg font-bold text-slate-400">No tickets found</h3>
-                <p className="text-sm text-slate-500 mt-1 max-w-xs mx-auto">
-                  Submit a diagnosis on the AI Disease Ingestion page, or simulate one above.
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Expert Resolution Drawer */}
-          <div className="lg:col-span-1">
-            {selectedTicket ? (
-              <div className="bg-slate-900/40 border border-emerald-500/20 p-6 rounded-2xl backdrop-blur-md space-y-5 sticky top-24">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="text-base font-extrabold text-slate-200">Expert Action Console</h3>
-                    <p className="text-[11px] text-slate-500 mt-0.5">Ticket: {selectedTicket.id.substring(0, 14)}…</p>
-                  </div>
-                  <button onClick={() => setSelectedTicket(null)}
-                    className="p-1 text-slate-500 hover:text-slate-300 hover:bg-slate-800/40 rounded-lg transition cursor-pointer">
-                    <X className="h-5 w-5" />
-                  </button>
+                  <span className={`text-xs font-extrabold px-3 py-1.5 rounded-xl border shrink-0 ${
+                    status === 'RESOLVED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                    status === 'IN_PROGRESS' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                    'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                  }`}>{ticket.on_hold ? 'ON HOLD' : status}</span>
                 </div>
-
-                <div className="space-y-3 text-xs">
-                  <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1.5">Farmer Report</span>
-                    <p className="text-slate-300 leading-relaxed italic">"{getTranscript(selectedTicket)}"</p>
-                  </div>
-
-                  {getSteps(selectedTicket).length > 0 && (
-                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
-                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1.5">AI Remediation Steps</span>
-                      <ul className="space-y-1.5">
-                        {getSteps(selectedTicket).map((step, i) => (
-                          <li key={i} className="flex gap-2 text-slate-300 leading-relaxed">
-                            <span className="text-emerald-400 font-bold shrink-0">•</span>
-                            <p>{step}</p>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider">Expert Advisory Notes</label>
-                      <button
-                        type="button"
-                        onClick={handleAutofill}
-                        disabled={isAutofilling}
-                        className="flex items-center gap-1 text-[10px] font-bold text-violet-400 hover:text-violet-300 border border-violet-500/20 bg-violet-500/10 px-2 py-1 rounded-lg transition cursor-pointer disabled:opacity-50"
-                      >
-                        {isAutofilling
-                          ? <><RefreshCw className="h-3 w-3 animate-spin" /> Generating…</>
-                          : <><Sparkles className="h-3 w-3" /> AI Autofill</>
-                        }
-                      </button>
-                    </div>
-                    <textarea rows={4} placeholder="Add specific field instructions for the farmer…"
-                      value={remediationText} onChange={e => setRemediationText(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none transition resize-none leading-relaxed" />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1.5">Status</label>
-                      <select value={newStatus} onChange={e => setNewStatus(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none cursor-pointer">
-                        <option value="PENDING">PENDING</option>
-                        <option value="IN_PROGRESS">IN PROGRESS</option>
-                        <option value="RESOLVED">RESOLVED</option>
-                      </select>
-                    </div>
-                    <div className="flex items-end">
-                      <button onClick={handleResolveTicket} disabled={isSaving}
-                        className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2 rounded-xl transition flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50">
-                        {isSaving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                        {isSaving ? 'Saving…' : 'Save'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-20 bg-slate-900/10 border border-slate-800/40 rounded-3xl h-full flex flex-col justify-center items-center">
-                <Clock className="h-10 w-10 text-slate-700 mx-auto stroke-1" />
-                <h3 className="text-sm font-bold text-slate-400 mt-3">Select a ticket</h3>
-                <p className="text-xs text-slate-500 mt-1 max-w-[200px] mx-auto">Click any alert ticket to open the expert resolution console.</p>
-              </div>
-            )}
-          </div>
-
+              );
+            })
+          ) : (
+            <div className="text-center py-24 bg-slate-900/10 border border-slate-800/40 rounded-3xl">
+              <Sprout className="h-10 w-10 text-slate-700 mx-auto mb-3 stroke-1" />
+              <h3 className="text-lg font-bold text-slate-400">No active tickets found</h3>
+              <p className="text-sm text-slate-500 mt-1 max-w-xs mx-auto">
+                No tickets match your active filters. Click Simulate Farmer Alert to ingest a new ticket.
+              </p>
+            </div>
+          )}
         </section>
       </main>
 

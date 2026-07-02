@@ -36,6 +36,19 @@ class Settings(BaseSettings):
     # ── Sarvam AI API (alternative translation) ───────────────────────────────
     SARVAM_API_KEY: str = Field(default="", alias="SARVAM_API_KEY")
 
+    # ── Authkey.io SMS/WhatsApp Gateway Configuration ─────────────────────────
+    AUTHKEY_API_KEY: str = Field(default="", alias="AUTHKEY_API_KEY")
+    AUTHKEY_SENDER_ID: str = Field(default="AUTHKY", alias="AUTHKEY_SENDER_ID")
+
+    # ── Government of India data.gov.in API Key (Mandi Prices) ────────────────
+    DATA_GOV_IN_API_KEY: str = Field(default="", alias="DATA_GOV_IN_API_KEY")
+
+    # ── Free Gmail SMTP settings for email OTP sending ────────────────────────
+    SMTP_HOST: str = Field(default="smtp.gmail.com", alias="SMTP_HOST")
+    SMTP_PORT: int = Field(default=465, alias="SMTP_PORT")
+    SMTP_USERNAME: str = Field(default="", alias="SMTP_USERNAME")
+    SMTP_PASSWORD: str = Field(default="", alias="SMTP_PASSWORD")
+
     # ── FastAPI server ────────────────────────────────────────────────────────
     environment: str = Field(default="development", alias="ENVIRONMENT")
     port: int = Field(default=8000, alias="PORT")

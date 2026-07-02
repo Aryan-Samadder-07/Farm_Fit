@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Navbar from '../components/Navbar';
 import { Map, RefreshCw, AlertCircle, LocateFixed, MapPin, PlusCircle, CheckCircle, X, Send } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -10,8 +11,12 @@ const CROP_OPTIONS = ['Tomato', 'Rice', 'Cotton', 'Maize', 'Chilli', 'Sugarcane'
 const DISEASE_OPTIONS = ['Late Blight', 'Rice Blast', 'Cotton Bollworm', 'Leaf Blight', 'Fusarium Wilt', 'Powdery Mildew', 'Downy Mildew', 'Bacterial Wilt', 'Root Rot', 'Other'];
 
 export default function GISMapPage() {
+  const { user } = useAuth();
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletMap = useRef<any>(null);
+
+  const designation = user?.designation?.toUpperCase() || '';
+  const canRegisterOutbreak = designation === 'VILLAGE CHIEF' || designation === 'ADMIN';
 
   // Map state
   const [isLoading, setIsLoading] = useState(true);
@@ -249,12 +254,14 @@ export default function GISMapPage() {
               Refresh
             </button>
 
-            <button onClick={() => { setShowPanel(p => !p); resetForm(); }}
-              className={`flex items-center gap-2 border px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                showPanel ? 'bg-rose-500/10 border-rose-500/30 text-rose-400' : 'bg-rose-500 hover:bg-rose-400 border-rose-500 text-white'
-              }`}>
-              {showPanel ? <><X className="h-4 w-4" /> Close</> : <><PlusCircle className="h-4 w-4" /> Register Outbreak</>}
-            </button>
+            {canRegisterOutbreak && (
+              <button onClick={() => { setShowPanel(p => !p); resetForm(); }}
+                className={`flex items-center gap-2 border px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  showPanel ? 'bg-rose-500/10 border-rose-500/30 text-rose-400' : 'bg-rose-500 hover:bg-rose-400 border-rose-500 text-white'
+                }`}>
+                {showPanel ? <><X className="h-4 w-4" /> Close</> : <><PlusCircle className="h-4 w-4" /> Register Outbreak</>}
+              </button>
+            )}
           </div>
         </div>
 
@@ -296,7 +303,7 @@ export default function GISMapPage() {
           </div>
 
           {/* Outbreak Registration Panel */}
-          {showPanel && (
+          {showPanel && canRegisterOutbreak && (
             <div className="lg:col-span-1">
               <div className="bg-slate-900/50 border border-rose-500/20 rounded-2xl p-5 backdrop-blur-md h-full overflow-y-auto">
                 

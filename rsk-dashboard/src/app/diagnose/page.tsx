@@ -1,23 +1,36 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
-import { Sparkles, Cpu, Image as ImageIcon, Send, AlertCircle, RefreshCw, CheckCircle, MapPin, LocateFixed } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { Sparkles, Cpu, Image as ImageIcon, Send, AlertCircle, RefreshCw, CheckCircle, MapPin, LocateFixed, Trash2 } from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export default function DiagnosePage() {
+  const { user } = useAuth();
+  
   const [farmerName, setFarmerName] = useState('');
   const [cropType, setCropType] = useState('');
   const [problemTranscript, setProblemTranscript] = useState('');
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  
+  // Multiple image upload state
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  
   const [diagnosisResult, setDiagnosisResult] = useState<any | null>(null);
   const [isDiagnosing, setIsDiagnosing] = useState(false);
   const [diagError, setDiagError] = useState<string | null>(null);
   const [geoLat, setGeoLat] = useState<number | null>(null);
   const [geoLon, setGeoLon] = useState<number | null>(null);
   const [geoStatus, setGeoStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+
+  // Auto-fill from Auth Context
+  useEffect(() => {
+    if (user) {
+      setFarmerName(user.name || '');
+    }
+  }, [user]);
 
   const handleGetLocation = () => {
     if (!navigator.geolocation) {
@@ -37,21 +50,60 @@ export default function DiagnosePage() {
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setSelectedImage(file);
+    if (e.target.files) {
+      const files = Array.from(e.target.files);
+      const updatedFiles = [...selectedImages, ...files].slice(0, 3); // Max 3 images
+      setSelectedImages(updatedFiles);
+
+      const previews: string[] = [];
+      let loaded = 0;
+      if (updatedFiles.length === 0) {
+        setImagePreviews([]);
+        return;
+      }
+      
+      updatedFiles.forEach((file) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          previews.push(reader.result as string);
+          loaded++;
+          if (loaded === updatedFiles.length) {
+            setImagePreviews(previews);
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  };
+
+  const handleRemoveImage = (indexToRemove: number) => {
+    const updatedFiles = selectedImages.filter((_, idx) => idx !== indexToRemove);
+    setSelectedImages(updatedFiles);
+
+    const previews: string[] = [];
+    let loaded = 0;
+    if (updatedFiles.length === 0) {
+      setImagePreviews([]);
+      return;
+    }
+
+    updatedFiles.forEach((file) => {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setImagePreview(reader.result as string);
+        previews.push(reader.result as string);
+        loaded++;
+        if (loaded === updatedFiles.length) {
+          setImagePreviews(previews);
+        }
       };
       reader.readAsDataURL(file);
-    }
+    });
   };
 
   const handleFarmerDiagnose = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedImage) {
-      setDiagError("Please upload a leaf image to diagnose.");
+    if (selectedImages.length === 0) {
+      setDiagError("Please upload at least one leaf image to diagnose.");
       return;
     }
 
@@ -61,9 +113,18 @@ export default function DiagnosePage() {
 
     const formData = new FormData();
     formData.append("farmer_name", farmerName || "Anonymous Farmer");
-    formData.append("crop_type", cropType || "Unspecified Crop");
+    formData.append("crop_type", cropType || "Unknown");
     formData.append("problem_transcript", problemTranscript);
-    formData.append("image", selectedImage);
+    
+    // Auto-attach logged-in farmer coordinates if available
+    if (user?.phone_number) formData.append("phone_number", user.phone_number);
+    if (user?.village_name) formData.append("village_name", user.village_name);
+    
+    // Append multiple files to "images" parameter key
+    selectedImages.forEach((imgFile) => {
+      formData.append("images", imgFile);
+    });
+    
     if (geoLat !== null) formData.append("latitude", String(geoLat));
     if (geoLon !== null) formData.append("longitude", String(geoLon));
 
@@ -78,7 +139,6 @@ export default function DiagnosePage() {
       }
 
       const data = await res.json();
-      // Backend returns { ticket_id, diagnosis: { disease_name, confidence, ... } }
       setDiagnosisResult({ ticket_id: data.ticket_id, ...data.diagnosis });
     } catch (err: any) {
       console.error(err);
@@ -94,6 +154,7 @@ export default function DiagnosePage() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow">
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          
           {/* Form Column */}
           <div className="bg-slate-900/40 border border-slate-800 p-6 sm:p-8 rounded-2xl backdrop-blur-md space-y-6">
             <div className="flex items-center gap-2">
@@ -138,32 +199,45 @@ export default function DiagnosePage() {
                 />
               </div>
 
-              {/* Drag-and-drop Leaf Uploader */}
+              {/* Multiple Images Selector */}
               <div>
-                <label className="block text-sm font-semibold text-slate-300 mb-1.5">Leaf / Crop Health Image</label>
+                <label className="block text-sm font-semibold text-slate-300 mb-1.5">Upload Leaf/Crop Health Images (Up to 3)</label>
                 <div className="relative group border border-dashed border-slate-800 hover:border-slate-700 bg-slate-950 rounded-2xl p-6 text-center cursor-pointer transition">
                   <input
                     type="file"
                     accept="image/*"
+                    multiple
                     onChange={handleImageChange}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   />
-                  {imagePreview ? (
-                    <div className="relative h-44 w-full rounded-xl overflow-hidden bg-slate-900 flex items-center justify-center">
-                      <img src={imagePreview} alt="Leaf preview" className="object-contain h-full w-full" />
+                  <div className="py-2 space-y-2">
+                    <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-slate-400 mx-auto">
+                      <ImageIcon className="h-5 w-5" />
                     </div>
-                  ) : (
-                    <div className="py-4 space-y-2">
-                      <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-slate-400 mx-auto">
-                        <ImageIcon className="h-5 w-5" />
-                      </div>
-                      <div className="text-xs text-slate-400 font-medium">
-                        <span className="text-emerald-400 font-bold">Upload a file</span> or drag and drop
-                      </div>
-                      <p className="text-[10px] text-slate-500">PNG, JPG, WEBP up to 10MB</p>
+                    <div className="text-xs text-slate-400 font-medium">
+                      <span className="text-emerald-400 font-bold">Select images</span> or drag files
                     </div>
-                  )}
+                    <p className="text-[10px] text-slate-500">Upload multiple photos from different angles (Max 3)</p>
+                  </div>
                 </div>
+
+                {/* Previews grid */}
+                {imagePreviews.length > 0 && (
+                  <div className="grid grid-cols-3 gap-3 mt-4">
+                    {imagePreviews.map((preview, index) => (
+                      <div key={index} className="relative group h-24 rounded-xl overflow-hidden bg-slate-900 border border-slate-800">
+                        <img src={preview} alt={`Leaf preview ${index + 1}`} className="object-cover h-full w-full" />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveImage(index)}
+                          className="absolute top-1 right-1 p-1.5 bg-rose-500/80 hover:bg-rose-600 rounded-lg text-slate-100 opacity-0 group-hover:opacity-100 transition cursor-pointer"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* GPS Location Capture */}
@@ -196,11 +270,6 @@ export default function DiagnosePage() {
                     {geoLat.toFixed(5)}° N,&nbsp;{geoLon?.toFixed(5)}° E — will be attached to this ticket
                   </p>
                 )}
-                {geoStatus === 'error' && (
-                  <p className="text-[11px] text-rose-400/70 mt-1.5 text-center">
-                    Browser location access denied. Ticket will be logged without GPS coordinates.
-                  </p>
-                )}
               </div>
 
               {diagError && (
@@ -216,13 +285,9 @@ export default function DiagnosePage() {
                 className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-3 rounded-xl transition duration-150 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {isDiagnosing ? (
-                  <>
-                    <RefreshCw className="h-5 w-5 animate-spin" /> Analyzing crop leaf...
-                  </>
+                  <><RefreshCw className="h-5 w-5 animate-spin" /> Analyzing crop leaf...</>
                 ) : (
-                  <>
-                    <Send className="h-5 w-5" /> Submit to Ingestion Loop
-                  </>
+                  <><Send className="h-5 w-5" /> Submit to Ingestion Loop</>
                 )}
               </button>
             </form>
@@ -232,6 +297,14 @@ export default function DiagnosePage() {
           <div className="space-y-6">
             {diagnosisResult ? (
               <div className="bg-slate-900/40 border border-slate-800 p-6 sm:p-8 rounded-2xl backdrop-blur-md space-y-6">
+                
+                {/* AI Disclaimer Warning Banner (in bold) */}
+                <div className="bg-amber-500/10 border border-amber-500/25 p-4 rounded-xl text-center leading-relaxed">
+                  <span className="text-amber-400 font-extrabold text-xs uppercase tracking-wider block">
+                    ⚠️ This diagnosis is made by an AI and may not be correct, please wait for an RSK expert for a follow up
+                  </span>
+                </div>
+
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <CheckCircle className="h-6 w-6 text-emerald-400" />

@@ -1,60 +1,143 @@
 from google.cloud import firestore
 from config import settings
 import logging
+import datetime
 
 logger = logging.getLogger("db")
 
 _db_client = None
 _mock_sync_db_client = None
 
+# Stateful In-Memory Database for Mock Mode (MOCK_GCP_APIS=True)
+_MOCK_SYNC_STORE = {
+    "tickets": {
+        "mock_ticket_1": {
+            "farmer_name": "mock_farmer",
+            "crop_type": "Tomato",
+            "disease_name": "Late Blight",
+            "confidence": 0.95,
+            "severity_level": "HIGH",
+            "status": "RESOLVED",
+            "created_at": "2026-06-25T12:00:00Z"
+        }
+    },
+    "farmers": {
+        "+919876543210": {
+            "name": "Rajesh Kumar",
+            "village_name": "Podalakur Mandal",
+            "phone_number": "+919876543210"
+        }
+    },
+    "professionals": {},
+    "outbreaks": {},
+    "alerts": {},
+    "otps": {}
+}
+
+def _clean_mock_data(data: dict) -> dict:
+    """
+    Scans incoming mock data and converts Firestore Sentinel placeholders
+    (like SERVER_TIMESTAMP) into ISO string datetimes.
+    """
+    cleaned = {}
+    for k, v in data.items():
+        if hasattr(v, '__class__') and v.__class__.__name__ == 'Sentinel':
+            cleaned[k] = datetime.datetime.utcnow().isoformat() + "Z"
+        else:
+            cleaned[k] = v
+    return cleaned
 
 def _build_mock_sync_client():
     """
-    Lightweight synchronous mock Firestore client for local dev (MOCK_GCP_APIS=True).
+    Lightweight stateful mock Firestore client for local dev (MOCK_GCP_APIS=True).
     """
     import uuid
 
     class _MockDocRef:
-        def __init__(self, doc_id: str):
+        def __init__(self, collection_name: str, doc_id: str):
+            self.collection_name = collection_name
             self.id = doc_id
 
         def set(self, data: dict, merge: bool = False):
-            logger.info(f"[Mock SyncDB] SET {self.id}: {data}")
+            cleaned = _clean_mock_data(data)
+            logger.info(f"[Mock SyncDB] SET {self.collection_name}/{self.id}: {cleaned}")
+            if self.collection_name not in _MOCK_SYNC_STORE:
+                _MOCK_SYNC_STORE[self.collection_name] = {}
+            if merge:
+                _MOCK_SYNC_STORE[self.collection_name][self.id] = {
+                    **_MOCK_SYNC_STORE[self.collection_name].get(self.id, {}),
+                    **cleaned
+                }
+            else:
+                _MOCK_SYNC_STORE[self.collection_name][self.id] = cleaned
             return {"update_time": "mock-time"}
 
         def update(self, data: dict):
-            logger.info(f"[Mock SyncDB] UPDATE {self.id}: {data}")
+            cleaned = _clean_mock_data(data)
+            logger.info(f"[Mock SyncDB] UPDATE {self.collection_name}/{self.id}: {cleaned}")
+            if self.collection_name not in _MOCK_SYNC_STORE:
+                _MOCK_SYNC_STORE[self.collection_name] = {}
+            _MOCK_SYNC_STORE[self.collection_name][self.id] = {
+                **_MOCK_SYNC_STORE[self.collection_name].get(self.id, {}),
+                **cleaned
+            }
 
-        class _Query:
-            def stream(self):
-                return iter([])
-            def where(self, *a, **kw):
-                return self
-            def order_by(self, *a, **kw):
-                return self
-            def limit(self, *a, **kw):
-                return self
+        def delete(self):
+            logger.info(f"[Mock SyncDB] DELETE {self.collection_name}/{self.id}")
+            if self.collection_name in _MOCK_SYNC_STORE:
+                _MOCK_SYNC_STORE[self.collection_name].pop(self.id, None)
+
+        def get(self):
+            class _MockDocSnapshot:
+                def __init__(self, exists: bool, data: dict, doc_id: str):
+                    self.exists = exists
+                    self._data = data
+                    self.id = doc_id
+                def to_dict(self) -> dict:
+                    return self._data
+            
+            coll = _MOCK_SYNC_STORE.get(self.collection_name, {})
+            exists = self.id in coll
+            data = coll.get(self.id, {})
+            return _MockDocSnapshot(exists, data, self.id)
 
     class _MockCollection:
         def __init__(self, name: str):
             self.name = name
+            if name not in _MOCK_SYNC_STORE:
+                _MOCK_SYNC_STORE[name] = {}
 
         def document(self, doc_id: str = None) -> "_MockDocRef":
-            return _MockDocRef(doc_id or str(uuid.uuid4()))
+            return _MockDocRef(self.name, doc_id or str(uuid.uuid4()))
 
         def add(self, data: dict):
+            cleaned = _clean_mock_data(data)
             doc_id = str(uuid.uuid4())
-            logger.info(f"[Mock SyncDB] ADD {self.name}/{doc_id}: {data}")
-            return None, _MockDocRef(doc_id)
+            logger.info(f"[Mock SyncDB] ADD {self.name}/{doc_id}: {cleaned}")
+            _MOCK_SYNC_STORE[self.name][doc_id] = cleaned
+            return None, _MockDocRef(self.name, doc_id)
 
         def where(self, *a, **kw):
-            return _MockDocRef._Query()
+            return self
 
         def order_by(self, *a, **kw):
-            return _MockDocRef._Query()
+            return self
+
+        def limit(self, *a, **kw):
+            return self
 
         def stream(self):
-            return iter([])
+            results = []
+            coll = _MOCK_SYNC_STORE.get(self.name, {})
+            for doc_id, data in coll.items():
+                class _MockSnapshot:
+                    def __init__(self, id, d):
+                        self.id = id
+                        self._d = d
+                    def to_dict(self):
+                        return self._d
+                results.append(_MockSnapshot(doc_id, data))
+            return iter(results)
 
     class _MockFirestoreClient:
         class Query:
@@ -97,32 +180,46 @@ def _build_mock_async_client():
     Returns a lightweight async-compatible mock Firestore client for
     local development when MOCK_GCP_APIS=True.
     """
-    import logging
     import uuid
-
     logger = logging.getLogger("mock_async_db")
 
     class _MockAsyncDocRef:
-        def __init__(self, doc_id: str):
+        def __init__(self, collection_name: str, doc_id: str):
+            self.collection_name = collection_name
             self.id = doc_id
 
         async def set(self, data: dict, merge: bool = False):
-            logger.info(f"[Mock AsyncDB] SET {self.id}: {data}")
+            cleaned = _clean_mock_data(data)
+            logger.info(f"[Mock AsyncDB] SET {self.collection_name}/{self.id}: {cleaned}")
+            if self.collection_name not in _MOCK_SYNC_STORE:
+                _MOCK_SYNC_STORE[self.collection_name] = {}
+            _MOCK_SYNC_STORE[self.collection_name][self.id] = cleaned
 
         async def update(self, data: dict):
-            logger.info(f"[Mock AsyncDB] UPDATE {self.id}: {data}")
+            cleaned = _clean_mock_data(data)
+            logger.info(f"[Mock AsyncDB] UPDATE {self.collection_name}/{self.id}: {cleaned}")
+            if self.collection_name not in _MOCK_SYNC_STORE:
+                _MOCK_SYNC_STORE[self.collection_name] = {}
+            _MOCK_SYNC_STORE[self.collection_name][self.id] = {
+                **_MOCK_SYNC_STORE[self.collection_name].get(self.id, {}),
+                **cleaned
+            }
 
     class _MockAsyncCollection:
         def __init__(self, name: str):
             self.name = name
 
         def document(self, doc_id: str = None) -> "_MockAsyncDocRef":
-            return _MockAsyncDocRef(doc_id or str(uuid.uuid4()))
+            return _MockAsyncDocRef(self.name, doc_id or str(uuid.uuid4()))
 
         async def add(self, data: dict):
+            cleaned = _clean_mock_data(data)
             doc_id = str(uuid.uuid4())
-            logger.info(f"[Mock AsyncDB] ADD to {self.name}/{doc_id}: {data}")
-            return None, _MockAsyncDocRef(doc_id)
+            logger.info(f"[Mock AsyncDB] ADD to {self.name}/{doc_id}: {cleaned}")
+            if self.name not in _MOCK_SYNC_STORE:
+                _MOCK_SYNC_STORE[self.name] = {}
+            _MOCK_SYNC_STORE[self.name][doc_id] = cleaned
+            return None, _MockAsyncDocRef(self.name, doc_id)
 
     class _MockAsyncFirestoreClient:
         def collection(self, name: str) -> "_MockAsyncCollection":
@@ -134,8 +231,6 @@ def _build_mock_async_client():
 def get_async_db():
     """
     Returns a singleton async Firestore client (or a mock when MOCK_GCP_APIS=True).
-    Use this in routes that call `await db.collection(...).document(...).set(...)`.
-    The original sync `get_db()` is unaffected and remains for all existing services.
     """
     global _async_db_client, _mock_async_db_client
 

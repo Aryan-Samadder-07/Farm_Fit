@@ -1,5 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, status
-from typing import Optional
+from typing import Optional, List
+import base64
 from google.cloud import firestore
 from services.diagnosis_service import DiagnosisService
 from db import get_db
@@ -8,29 +9,39 @@ router = APIRouter(prefix="/api/v1/diagnosis", tags=["Diagnosis Engine"])
 
 @router.post("/diagnose")
 async def diagnose_crop_endpoint(
-    image: UploadFile = File(...),
+    images: List[UploadFile] = File(...),
     problem_transcript: str = Form(...),
     farmer_name: str = Form("Anonymous Farmer"),
     crop_type: str = Form("Unknown"),
+    phone_number: Optional[str] = Form(None),
+    village_name: Optional[str] = Form(None),
     latitude: Optional[float] = Form(None),
     longitude: Optional[float] = Form(None),
     db: firestore.Client = Depends(get_db)
 ):
     """
-    Multimodal diagnostic endpoint. Receives crop image file upload and farmer transcript description.
+    Multimodal diagnostic endpoint. Receives crop image file uploads and farmer transcript description.
     Executes the Gemini diagnosis service, automatically logs the request in the Firestore
     'tickets' collection, and returns the diagnostic analysis.
     """
     try:
-        # Read raw image byte stream and content type
-        image_bytes = await image.read()
-        mime_type = image.content_type or "image/jpeg"
+        if not images:
+            raise HTTPException(status_code=400, detail="At least one leaf image is required.")
+
+        # Read all images and encode to base64 for persistent database logging
+        images_base64 = []
+        images_payload = []
+        for img in images:
+            image_bytes = await img.read()
+            mime_type = img.content_type or "image/jpeg"
+            encoded_str = base64.b64encode(image_bytes).decode("utf-8")
+            images_base64.append(f"data:{mime_type};base64,{encoded_str}")
+            images_payload.append((image_bytes, mime_type))
         
         # Invoke diagnosis service using standard configuration settings
         service = DiagnosisService()
         result = await service.diagnose_crop(
-            image_bytes=image_bytes,
-            mime_type=mime_type,
+            images_list=images_payload,
             problem_transcript=problem_transcript
         )
         
@@ -50,8 +61,13 @@ async def diagnose_crop_endpoint(
             "actionable_steps": result.actionable_steps,
             "requires_expert": result.requires_expert,
             "status": "PENDING",
+            "images": images_base64,
             "created_at": firestore.SERVER_TIMESTAMP
         }
+        if phone_number:
+            ticket_payload["phone_number"] = phone_number
+        if village_name:
+            ticket_payload["village_name"] = village_name
         if latitude is not None:
             ticket_payload["latitude"] = latitude
         if longitude is not None:
