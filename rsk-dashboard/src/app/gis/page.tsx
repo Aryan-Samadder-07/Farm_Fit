@@ -5,7 +5,7 @@ import Navbar from '../components/Navbar';
 import { Map, RefreshCw, AlertCircle, LocateFixed, MapPin, PlusCircle, CheckCircle, X, Send } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 
 const CROP_OPTIONS = ['Tomato', 'Rice', 'Cotton', 'Maize', 'Chilli', 'Sugarcane', 'Groundnut', 'Wheat', 'Sorghum', 'Turmeric'];
 const DISEASE_OPTIONS = ['Late Blight', 'Rice Blast', 'Cotton Bollworm', 'Leaf Blight', 'Fusarium Wilt', 'Powdery Mildew', 'Downy Mildew', 'Bacterial Wilt', 'Root Rot', 'Other'];
@@ -215,10 +215,8 @@ export default function GISMapPage() {
   useEffect(() => {
     loadMap();
     return () => { if (leafletMap.current) { leafletMap.current.remove(); leafletMap.current = null; } };
-  }, []);
-
-  return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+  }, []);  return (
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col">
       <Navbar />
 
       <main className="flex-grow flex flex-col max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 gap-6">
@@ -226,40 +224,40 @@ export default function GISMapPage() {
         {/* Header Row */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20 text-emerald-400">
-              <Map className="h-6 w-6" />
+            <div className="w-10 h-10 rounded-lg bg-slate-900 flex items-center justify-center">
+              <Map className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h2 className="text-xl font-black">GIS Disease Intelligence Map</h2>
+              <h2 className="text-xl font-bold text-slate-900">GIS Disease Intelligence Map</h2>
               <p className="text-xs text-slate-400">Live geospatial visualization • farmer alerts • disease outbreak clusters</p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-4 bg-slate-900/40 border border-slate-800 px-4 py-2.5 rounded-xl text-xs">
+            <div className="flex items-center gap-4 bg-white border border-slate-200 px-4 py-2 rounded-lg text-xs shadow-xs">
               <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />
-                <span className="text-slate-300">{farmerCount} Farmers</span>
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                <span className="text-slate-600 font-semibold">{farmerCount} Farmers</span>
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-400 shadow-[0_0_6px_#f87171]" />
-                <span className="text-slate-300">{outbreakCount} Outbreaks</span>
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                <span className="text-slate-600 font-semibold">{outbreakCount} Outbreaks</span>
               </span>
-              {lastUpdated && <span className="text-slate-500 hidden sm:block">Updated: {lastUpdated}</span>}
+              {lastUpdated && <span className="text-slate-400 hidden sm:block">Updated: {lastUpdated}</span>}
             </div>
 
             <button onClick={loadMap} disabled={isLoading}
-              className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-300 transition cursor-pointer">
-              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              className="flex items-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-xs font-semibold text-slate-600 transition cursor-pointer shadow-xs">
+              <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
             </button>
 
             {canRegisterOutbreak && (
               <button onClick={() => { setShowPanel(p => !p); resetForm(); }}
-                className={`flex items-center gap-2 border px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                  showPanel ? 'bg-rose-500/10 border-rose-500/30 text-rose-400' : 'bg-rose-500 hover:bg-rose-400 border-rose-500 text-white'
+                className={`flex items-center gap-2 border px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  showPanel ? 'bg-rose-50 border-rose-200 text-rose-600' : 'bg-rose-500 hover:bg-rose-600 border-rose-500 text-white'
                 }`}>
-                {showPanel ? <><X className="h-4 w-4" /> Close</> : <><PlusCircle className="h-4 w-4" /> Register Outbreak</>}
+                {showPanel ? <><X className="h-3.5 w-3.5" /> Close</> : <><PlusCircle className="h-3.5 w-3.5" /> Register Outbreak</>}
               </button>
             )}
           </div>
@@ -268,21 +266,21 @@ export default function GISMapPage() {
         {/* Legend */}
         <div className="flex flex-wrap gap-2 text-xs">
           {[
-            { color: 'bg-rose-400 shadow-[0_0_4px_#f87171]', label: 'High Severity' },
-            { color: 'bg-orange-400 shadow-[0_0_4px_#fb923c]', label: 'Medium Severity' },
-            { color: 'bg-emerald-400 shadow-[0_0_4px_#34d399]', label: 'Low / Healthy' },
-            { color: 'bg-rose-500/50 border border-rose-400 border-dashed', label: '5 km Outbreak Radius' },
+            { color: 'bg-rose-500', label: 'High Severity' },
+            { color: 'bg-amber-500', label: 'Medium Severity' },
+            { color: 'bg-emerald-500', label: 'Low / Healthy' },
+            { color: 'bg-rose-200 border border-rose-400 border-dashed', label: '5 km Outbreak Radius' },
           ].map(({ color, label }) => (
-            <div key={label} className="flex items-center gap-2 bg-slate-900/40 border border-slate-800 px-3 py-1.5 rounded-lg">
+            <div key={label} className="flex items-center gap-2 bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-xs">
               <span className={`w-3 h-3 rounded-full shrink-0 ${color}`} />
-              <span className="text-slate-400">{label}</span>
+              <span className="text-slate-600 font-semibold">{label}</span>
             </div>
           ))}
         </div>
 
         {mapError && (
-          <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 p-4 rounded-xl flex items-center gap-3 text-sm">
-            <AlertCircle className="h-5 w-5 shrink-0" />
+          <div className="bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-xl flex items-center gap-3 text-sm">
+            <AlertCircle className="h-5 w-5 shrink-0 text-rose-500" />
             <span>{mapError} — Please ensure the API is online and try refreshing.</span>
           </div>
         )}
@@ -291,11 +289,11 @@ export default function GISMapPage() {
         <div className={`grid gap-6 flex-grow ${showPanel ? 'grid-cols-1 lg:grid-cols-3' : 'grid-cols-1'}`}>
 
           {/* Map */}
-          <div className={`relative min-h-[520px] rounded-2xl overflow-hidden border border-slate-800 bg-slate-900 ${showPanel ? 'lg:col-span-2' : ''}`}>
+          <div className={`relative min-h-[520px] rounded-xl overflow-hidden border border-slate-200 bg-slate-800 shadow-xs ${showPanel ? 'lg:col-span-2' : ''}`}>
             {isLoading && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-slate-900/90 backdrop-blur-sm">
-                <RefreshCw className="h-10 w-10 text-emerald-400 animate-spin mb-4" />
-                <p className="text-sm font-bold text-slate-300">Loading GIS layers...</p>
+              <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-slate-800/90">
+                <RefreshCw className="h-8 w-8 text-slate-300 animate-spin mb-3" />
+                <p className="text-sm font-semibold text-slate-300">Loading GIS layers...</p>
                 <p className="text-xs text-slate-500 mt-1">Fetching spatial data from API</p>
               </div>
             )}
@@ -305,31 +303,31 @@ export default function GISMapPage() {
           {/* Outbreak Registration Panel */}
           {showPanel && canRegisterOutbreak && (
             <div className="lg:col-span-1">
-              <div className="bg-slate-900/50 border border-rose-500/20 rounded-2xl p-5 backdrop-blur-md h-full overflow-y-auto">
-                
+              <div className="bg-white border border-slate-200 rounded-xl p-5 h-full overflow-y-auto shadow-xs">
+
                 {regStatus === 'success' ? (
                   <div className="flex flex-col items-center justify-center text-center h-full py-12 gap-4">
-                    <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                      <CheckCircle className="h-7 w-7 text-emerald-400" />
+                    <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center">
+                      <CheckCircle className="h-7 w-7 text-emerald-500" />
                     </div>
-                    <h3 className="text-lg font-black text-slate-100">Outbreak Registered</h3>
-                    <p className="text-sm text-slate-400 max-w-[220px] leading-relaxed">{regMessage}</p>
-                    <p className="text-xs text-slate-500">Map is refreshing with the new cluster…</p>
+                    <h3 className="text-lg font-bold text-slate-900">Outbreak Registered</h3>
+                    <p className="text-sm text-slate-500 max-w-[220px] leading-relaxed">{regMessage}</p>
+                    <p className="text-xs text-slate-400">Map is refreshing with the new cluster…</p>
                     <button onClick={() => { resetForm(); setShowPanel(false); }}
-                      className="mt-2 text-xs font-bold text-rose-400 hover:text-rose-300 cursor-pointer">
+                      className="mt-2 text-xs font-semibold text-rose-600 hover:text-rose-700 cursor-pointer">
                       Close Panel
                     </button>
                   </div>
                 ) : (
                   <>
                     {/* Panel Header */}
-                    <div className="flex items-center gap-2 mb-5">
-                      <div className="bg-rose-500/10 p-2 rounded-xl border border-rose-500/20 text-rose-400">
-                        <PlusCircle className="h-5 w-5" />
+                    <div className="flex items-center gap-2 mb-5 border-b border-slate-100 pb-4">
+                      <div className="w-8 h-8 rounded-lg bg-rose-500 flex items-center justify-center">
+                        <PlusCircle className="h-4 w-4 text-white" />
                       </div>
                       <div>
-                        <h3 className="text-base font-black text-slate-100">Register Outbreak</h3>
-                        <p className="text-[11px] text-slate-500">Confirm a field-verified disease cluster</p>
+                        <h3 className="text-base font-bold text-slate-900">Register Outbreak</h3>
+                        <p className="text-[11px] text-slate-400">Confirm a field-verified disease cluster</p>
                       </div>
                     </div>
 
@@ -338,37 +336,37 @@ export default function GISMapPage() {
                       {/* Disease & Crop */}
                       <div className="grid grid-cols-1 gap-3">
                         <div>
-                          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Disease / Pest</label>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Disease / Pest</label>
                           <select value={regDisease} onChange={e => setRegDisease(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-800 focus:border-rose-500 rounded-xl px-3 py-2.5 text-sm text-slate-100 focus:outline-none transition cursor-pointer">
+                            className="w-full bg-white border border-slate-300 focus:border-slate-500 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none transition cursor-pointer">
                             {DISEASE_OPTIONS.map(d => <option key={d}>{d}</option>)}
                           </select>
                         </div>
                         <div>
-                          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Affected Crop</label>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Affected Crop</label>
                           <select value={regCrop} onChange={e => setRegCrop(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-800 focus:border-rose-500 rounded-xl px-3 py-2.5 text-sm text-slate-100 focus:outline-none transition cursor-pointer">
+                            className="w-full bg-white border border-slate-300 focus:border-slate-500 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none transition cursor-pointer">
                             {CROP_OPTIONS.map(c => <option key={c}>{c}</option>)}
                           </select>
                         </div>
                         <div>
-                          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Farmers Affected</label>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Farmers Affected</label>
                           <input type="number" min="1" value={regFarmerCount} onChange={e => setRegFarmerCount(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-800 focus:border-rose-500 rounded-xl px-3 py-2.5 text-sm text-slate-100 focus:outline-none transition" required />
+                            className="w-full bg-white border border-slate-300 focus:border-slate-500 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none transition" required />
                         </div>
                       </div>
 
                       {/* Location fields */}
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">District</label>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">District</label>
                           <input type="text" placeholder="e.g. SPSR Nellore" value={regDistrict} onChange={e => setRegDistrict(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-800 focus:border-rose-500 rounded-xl px-3 py-2.5 text-sm text-slate-100 focus:outline-none transition" />
+                            className="w-full bg-white border border-slate-300 focus:border-slate-500 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none transition" />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Village / Mandal</label>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Village / Mandal</label>
                           <input type="text" placeholder="e.g. Kovur Mandal" value={regVillage} onChange={e => setRegVillage(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-800 focus:border-rose-500 rounded-xl px-3 py-2.5 text-sm text-slate-100 focus:outline-none transition" />
+                            className="w-full bg-white border border-slate-300 focus:border-slate-500 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none transition" />
                         </div>
                       </div>
 
@@ -378,12 +376,12 @@ export default function GISMapPage() {
                           Outbreak GPS Coordinates <span className="text-rose-400">*</span>
                         </label>
                         <button type="button" onClick={handleGetLocation} disabled={geoStatus === 'loading'}
-                          className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border font-bold text-sm transition cursor-pointer ${
+                          className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg border font-semibold text-sm transition cursor-pointer ${
                             geoStatus === 'success'
-                              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
                               : geoStatus === 'error'
-                              ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
-                              : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-rose-500/40 hover:text-rose-400'
+                              ? 'bg-rose-50 border-rose-200 text-rose-600'
+                              : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50'
                           }`}>
                           {geoStatus === 'loading' ? <><RefreshCw className="h-4 w-4 animate-spin" /> Acquiring signal...</>
                            : geoStatus === 'success' ? <><MapPin className="h-4 w-4" /> Location Pinned ✓</>
@@ -391,7 +389,7 @@ export default function GISMapPage() {
                            : <><LocateFixed className="h-4 w-4" /> Pin Current Location</>}
                         </button>
                         {geoStatus === 'success' && regLat !== null && (
-                          <p className="text-[10px] text-emerald-400/70 mt-1 text-center font-mono">
+                          <p className="text-[10px] text-emerald-600 mt-1 text-center font-mono">
                             {regLat.toFixed(5)}° N, {regLon?.toFixed(5)}° E
                           </p>
                         )}
@@ -401,13 +399,13 @@ export default function GISMapPage() {
                               <label className="block text-[10px] text-slate-500 mb-1">Latitude (manual)</label>
                               <input type="number" step="0.0001" placeholder="14.4426"
                                 onChange={e => setRegLat(parseFloat(e.target.value))}
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-rose-500 transition" />
+                                className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-slate-500 transition" />
                             </div>
                             <div>
                               <label className="block text-[10px] text-slate-500 mb-1">Longitude (manual)</label>
                               <input type="number" step="0.0001" placeholder="79.9865"
                                 onChange={e => setRegLon(parseFloat(e.target.value))}
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-rose-500 transition" />
+                                className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-slate-500 transition" />
                             </div>
                           </div>
                         )}
@@ -415,26 +413,26 @@ export default function GISMapPage() {
 
                       {/* Reporter & Notes */}
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Reported By</label>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Reported By</label>
                         <input type="text" placeholder="RSK Expert / Field Officer name" value={regReportedBy} onChange={e => setRegReportedBy(e.target.value)}
-                          className="w-full bg-slate-950 border border-slate-800 focus:border-rose-500 rounded-xl px-3 py-2.5 text-sm text-slate-100 focus:outline-none transition" />
+                          className="w-full bg-white border border-slate-300 focus:border-slate-500 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none transition" />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Field Notes (optional)</label>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Field Notes (optional)</label>
                         <textarea rows={2} placeholder="Any additional field observations..." value={regNotes} onChange={e => setRegNotes(e.target.value)}
-                          className="w-full bg-slate-950 border border-slate-800 focus:border-rose-500 rounded-xl px-3 py-2.5 text-sm text-slate-100 focus:outline-none transition resize-none" />
+                          className="w-full bg-white border border-slate-300 focus:border-slate-500 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none transition resize-none" />
                       </div>
 
                       {/* Error message */}
                       {regStatus === 'error' && regMessage && (
-                        <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 p-3 rounded-xl flex items-start gap-2 text-xs">
-                          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                        <div className="bg-rose-50 border border-rose-200 text-rose-700 p-3 rounded-lg flex items-start gap-2 text-xs">
+                          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-rose-500" />
                           <span>{regMessage}</span>
                         </div>
                       )}
 
                       <button type="submit" disabled={regStatus === 'submitting'}
-                        className="w-full bg-rose-500 hover:bg-rose-400 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
+                        className="w-full bg-rose-500 hover:bg-rose-600 text-white font-bold py-2.5 rounded-lg transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 text-sm">
                         {regStatus === 'submitting'
                           ? <><RefreshCw className="h-4 w-4 animate-spin" /> Registering...</>
                           : <><Send className="h-4 w-4" /> Confirm & Register Outbreak</>
