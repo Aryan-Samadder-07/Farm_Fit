@@ -87,32 +87,32 @@ export default function Navbar() {
   });
 
   return (
-    <header className="border-b border-slate-800 bg-slate-900/60 backdrop-blur-md sticky top-0 z-40">
+    <header className="bg-white border-b border-slate-200 sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col md:flex-row items-center justify-between gap-3">
 
         {/* Brand */}
         <div className="flex items-center gap-3 shrink-0">
-          <div className="bg-emerald-500/10 p-2 rounded-xl border border-emerald-500/20 text-emerald-400">
-            <Sprout className="h-6 w-6" />
+          <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center">
+            <Sprout className="h-4 w-4 text-white" />
           </div>
           <div>
-            <h1 className="text-lg sm:text-xl font-bold tracking-tight bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent leading-tight">
+            <h1 className="text-lg font-bold tracking-tight text-slate-900 leading-tight">
               Kisan Alert AI
             </h1>
-            <p className="text-[10px] text-slate-400 font-medium hidden sm:block">National Agricultural Intelligence Platform</p>
+            <p className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase hidden sm:block">National Agricultural Intelligence Platform</p>
           </div>
         </div>
 
         {/* Nav Links */}
-        <nav className="flex flex-wrap justify-center gap-1 my-1 md:my-0">
+        <nav className="flex flex-wrap justify-center gap-0.5 my-1 md:my-0">
           {navItems.map(({ name, href, icon: Icon }) => {
             const isActive = pathname === href;
             return (
               <Link key={href} href={href}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] md:text-xs font-bold rounded-lg transition duration-200 border ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-md transition duration-150 ${
                   isActive
-                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                    : 'text-slate-400 hover:text-slate-200 border-transparent hover:bg-slate-800/40'
+                    ? 'bg-slate-900 text-white'
+                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
                 }`}>
                 <Icon className="h-3.5 w-3.5 shrink-0" />
                 <span>{name}</span>
@@ -121,19 +121,19 @@ export default function Navbar() {
           })}
         </nav>
 
-        {/* Right-side status + notification bell + User Profile */}
+        {/* Right-side: status + notification bell + User Profile */}
         <div className="flex items-center gap-2 text-xs shrink-0">
-          
+
           {/* User badge */}
           {user && (
-            <div className="flex items-center gap-2 bg-slate-950 border border-slate-900 px-3 py-1.5 rounded-xl text-[11px]">
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg text-[11px]">
               <User className="h-3.5 w-3.5 text-slate-400" />
               <div className="flex flex-col items-start leading-none">
-                <span className="font-bold text-slate-200">{user.name}</span>
-                <span className={`text-[8px] font-black uppercase mt-0.5 ${
-                  user.role === 'FARMER' ? 'text-emerald-400' : 'text-violet-400'
+                <span className="font-bold text-slate-800">{user.name}</span>
+                <span className={`text-[8px] font-bold uppercase mt-0.5 ${
+                  user.role === 'FARMER' ? 'text-emerald-600' : 'text-indigo-600'
                 }`}>
-                  {user.role === 'FARMER' ? `Farmer (${user.village_name})` : user.designation}
+                  {user.role === 'FARMER' ? `Farmer · ${user.village_name}` : user.designation}
                 </span>
               </div>
             </div>
@@ -142,14 +142,14 @@ export default function Navbar() {
           {/* Notification Bell (Professionals only) */}
           {user && user.role === 'PROFESSIONAL' && (
             <Link href="/notifications"
-              className={`relative flex items-center gap-1.5 border px-2.5 py-1.5 rounded-xl transition cursor-pointer ${
+              className={`relative flex items-center gap-1.5 border px-2.5 py-1.5 rounded-lg transition cursor-pointer ${
                 pathname === '/notifications'
-                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                  ? 'bg-slate-900 text-white border-slate-900'
+                  : 'bg-white border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-50'
               }`}>
               <Bell className="h-3.5 w-3.5" />
               {unreadCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border border-slate-950">
+                <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border border-white">
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
@@ -157,10 +157,10 @@ export default function Navbar() {
           )}
 
           {/* API Status */}
-          <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-2.5 py-1.5 rounded-xl">
-            <RefreshCw className={`h-3 w-3 ${backendStatus === 'online' ? 'text-emerald-400' : 'text-rose-400'} ${backendStatus === 'connecting' ? 'animate-spin' : ''}`} />
+          <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-2.5 py-1.5 rounded-lg">
+            <RefreshCw className={`h-3 w-3 ${backendStatus === 'online' ? 'text-emerald-500' : 'text-rose-500'} ${backendStatus === 'connecting' ? 'animate-spin' : ''}`} />
             <span className="text-slate-400 hidden sm:inline">API:</span>
-            <span className={`font-semibold ${backendStatus === 'online' ? 'text-emerald-400' : 'text-rose-400'}`}>
+            <span className={`font-semibold ${backendStatus === 'online' ? 'text-emerald-600' : 'text-rose-600'}`}>
               {backendStatus === 'online' ? 'Online' : backendStatus === 'connecting' ? '…' : 'Offline'}
             </span>
           </div>
@@ -169,7 +169,7 @@ export default function Navbar() {
           {user && (
             <button
               onClick={logout}
-              className="flex items-center justify-center gap-1 bg-slate-900 hover:bg-rose-950/20 hover:text-rose-400 border border-slate-800 hover:border-rose-900/50 px-2.5 py-1.5 rounded-xl transition cursor-pointer font-bold text-slate-400"
+              className="flex items-center justify-center gap-1 bg-white hover:bg-rose-50 hover:text-rose-600 border border-slate-200 hover:border-rose-200 px-2.5 py-1.5 rounded-lg transition cursor-pointer font-semibold text-slate-500"
               title="Sign Out"
             >
               <LogOut className="h-3.5 w-3.5" />
