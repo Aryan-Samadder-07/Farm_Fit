@@ -213,7 +213,6 @@ export default function GISMapPage() {
 
   useEffect(() => {
     loadMap();
-<<<<<<< HEAD
     return () => { if (leafletMap.current) { leafletMap.current.remove(); leafletMap.current = null; } };
   }, []);
 
