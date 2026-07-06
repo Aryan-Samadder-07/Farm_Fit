@@ -113,8 +113,21 @@ class OutbreakService:
                             "delivered": False
                         }
                         self.db.collection("alerts").add(alert_data)
+                        
+                        # Propagate geo-fenced warning to farmers in range
+                        from services.notification_service import NotificationService
+                        notifier = NotificationService(self.db)
+                        await notifier.notify_farmers_in_radius(
+                            disease_name=disease,
+                            affected_area=f"{village}, {district}",
+                            severity_level="CRITICAL",
+                            precautions=f"Please inspect your {cluster[0]['crop_type']} fields. Apply organic or copper-based treatments immediately if spotted.",
+                            latitude=avg_lat,
+                            longitude=avg_lon,
+                            radius_km=5.0
+                        )
                     except Exception as db_err:
-                        print(f"[OutbreakService] DB logging failed: {db_err}")
+                        print(f"[OutbreakService] DB logging or propagation failed: {db_err}")
                         
                     detected_outbreaks.append(outbreak_data)
                     

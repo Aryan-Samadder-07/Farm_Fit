@@ -192,6 +192,65 @@ async def update_ticket_resolution(
         
         ticket_ref.update(update_data)
 
+        # Trigger farmer notification if expert remediation/advice is provided or ticket status is updated
+        if (payload.expert_remediation is not None) or (payload.status is not None):
+            ticket_doc = doc.to_dict() or {}
+            farmer_phone = ticket_doc.get("phone_number")
+            farmer_name = ticket_doc.get("farmer_name") or "Farmer"
+            crop_type = ticket_doc.get("crop_type") or "Crop"
+            
+            lang = ticket_doc.get("language_code", "hi-IN")
+            lang_prefix = lang.split("-")[0]
+            
+            remediation_text = payload.expert_remediation or "Your advisory report has been reviewed."
+            preview = remediation_text[:60] + "..." if len(remediation_text) > 60 else remediation_text
+            
+            advisory_url = f"http://localhost:3000/review/{ticket_id}"
+            
+            raw_msg = (
+                f"Dear {farmer_name}, an RSK expert has responded to your report for {crop_type}. "
+                f"Advice: {preview} "
+                f"You can view the full advisory here: {advisory_url}"
+            )
+            
+            from services.translation_service import TranslationService
+            translator = TranslationService()
+            localized_msg = raw_msg
+            if lang_prefix != "en":
+                localized_msg = translator.translate_from_english(raw_msg, target_language=lang_prefix)
+                
+            from services.notification_service import NotificationService
+            notifier = NotificationService(db)
+            if farmer_phone:
+                await notifier.send_alert_bundle(
+                    phone_number=farmer_phone,
+                    message=localized_msg,
+                    channels=["sms", "whatsapp"]
+                )
+                
+                push_id = f"push_expert_{ticket_id}_{int(datetime.datetime.utcnow().timestamp())}"
+                push_data = {
+                    "id": push_id,
+                    "farmer_phone": farmer_phone,
+                    "title": "📋 Expert Advisory Update Available",
+                    "message": localized_msg,
+                    "severity": "HIGH",
+                    "priority": "HIGH",
+                    "created_at": datetime.datetime.utcnow().isoformat() + "Z",
+                    "status": "DELIVERED",
+                    "advisory_url": advisory_url
+                }
+                db.collection("push_notifications").document(push_id).set(push_data)
+                
+                db.collection("alerts").add({
+                    "type": "EXPERT_ADVISORY",
+                    "title": f"Expert Response: {crop_type}",
+                    "message": localized_msg,
+                    "severity": "HIGH",
+                    "created_at": datetime.datetime.utcnow().isoformat() + "Z",
+                    "delivered": False
+                })
+
         # Trigger farmer notification if ticket is placed on hold for on-site visit
         if payload.on_hold is True:
             ticket_doc = doc.to_dict() or {}

@@ -88,6 +88,19 @@ async def register_outbreak_manually(req: OutbreakRegisterRequest):
         }
         db.collection("alerts").document().set(alert_data)
 
+        # Propagate geo-fenced warning to farmers in range
+        from services.notification_service import NotificationService
+        notifier = NotificationService(db)
+        await notifier.notify_farmers_in_radius(
+            disease_name=req.disease_name,
+            affected_area=f"{req.village}, {req.district}",
+            severity_level="CRITICAL",
+            precautions=req.notes or f"Please inspect your {req.crop_type} fields immediately. An outbreak of {req.disease_name} has been confirmed in your area.",
+            latitude=req.latitude,
+            longitude=req.longitude,
+            radius_km=5.0
+        )
+
         return {
             "success": True,
             "outbreak_id": doc_ref.id,

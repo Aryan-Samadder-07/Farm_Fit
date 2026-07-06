@@ -1,7 +1,9 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, UploadFile, File, Form
 from pydantic import BaseModel, Field
-from typing import List, Dict
+from typing import List, Dict, Optional
 from services.knowledge_service import KnowledgeService
+from services.speech_service import SpeechService
+from services.translation_service import TranslationService
 
 router = APIRouter(prefix="/api/v1/knowledge", tags=["Agricultural RAG Knowledge Base"])
 
@@ -33,4 +35,87 @@ async def query_agriculture_knowledge(payload: RAGQueryRequest):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Knowledge retrieval RAG failed: {str(e)}"
+        )
+
+
+@router.post("/query-preprocessed")
+async def query_agriculture_knowledge_preprocessed(
+    voice: Optional[UploadFile] = File(None),
+    text: Optional[str] = Form(None),
+    language_code: str = Form("auto"),
+    top_k: int = Form(2)
+):
+    """
+    Preprocessed RAG Search query. Accepts voice or text in any language,
+    detects language, translates to English, queries the knowledge base,
+    and translates the results back to the farmer's native language.
+    """
+    speech_service = SpeechService()
+    translation_service = TranslationService()
+    
+    try:
+        raw_query = ""
+        effective_lang = language_code
+        
+        if voice:
+            audio_content = await voice.read()
+            if audio_content:
+                stt_lang = "hi-IN" if language_code == "auto" else language_code
+                raw_query = await speech_service.transcribe_audio(
+                    audio_bytes=audio_content, language_code=stt_lang
+                )
+                if language_code == "auto":
+                    detected_prefix = translation_service.detect_language(raw_query)
+                    effective_lang = f"{detected_prefix}-IN"
+        elif text:
+            raw_query = text
+            if language_code == "auto":
+                detected_prefix = translation_service.detect_language(raw_query)
+                effective_lang = f"{detected_prefix}-IN"
+        else:
+            raise HTTPException(status_code=400, detail="Either voice or text query must be provided.")
+            
+        lang_prefix = effective_lang.split("-")[0]
+        
+        # Translate query to English for RAG querying
+        english_query = raw_query
+        if lang_prefix != "en":
+            english_query = translation_service.translate_to_english(raw_query, source_language=lang_prefix)
+            
+        # Send English query to RAG Search API
+        knowledge_srv = KnowledgeService()
+        matches = await knowledge_srv.query_knowledge(english_query, top_k)
+        
+        # Translate the resulting snippets back to farmer's language
+        translated_matches = []
+        for match in matches:
+            text_to_translate = match["text"]
+            title_to_translate = match["title"]
+            
+            localized_text = text_to_translate
+            localized_title = title_to_translate
+            
+            if lang_prefix != "en":
+                localized_text = translation_service.translate_from_english(text_to_translate, target_language=lang_prefix)
+                localized_title = translation_service.translate_from_english(title_to_translate, target_language=lang_prefix)
+                
+            translated_matches.append({
+                "doc_id": match["doc_id"],
+                "title": localized_title,
+                "text": localized_text,
+                "similarity": match["similarity"]
+            })
+            
+        return {
+            "original_query": raw_query,
+            "english_query": english_query,
+            "language_detected": effective_lang,
+            "relevant_passages": translated_matches
+        }
+        
+    except Exception as e:
+        print(f"Error in query_agriculture_knowledge_preprocessed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Preprocessed RAG query failed: {str(e)}"
         )

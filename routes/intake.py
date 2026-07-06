@@ -236,3 +236,139 @@ async def intake_text(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Text intake pipeline failed: {str(e)}",
         )
+
+
+@router.post("/preprocess-diagnose", status_code=status.HTTP_201_CREATED)
+async def preprocess_diagnose(
+    voice: Optional[UploadFile] = File(None, description="Audio file in WAV, FLAC, or OGG-Opus format"),
+    text: Optional[str] = Form(None, description="Farmer's raw text description"),
+    images: List[UploadFile] = File([], description="Up to 3 leaf/crop images"),
+    farmer_name: str = Form("Anonymous Farmer"),
+    crop_type: str = Form("Unknown"),
+    phone_number: Optional[str] = Form(None),
+    village_name: Optional[str] = Form(None),
+    latitude: Optional[float] = Form(None),
+    longitude: Optional[float] = Form(None),
+    db=Depends(get_async_db)
+):
+    """
+    Multimodal intake preprocessing endpoint. Accepts optional voice or text inputs,
+    and optional crop images with farmer metadata.
+    Automatically detects spoken language or text language, converts voice to text,
+    translates transcripts to English, and forwards the standardized query directly
+    to the Disease Intelligence API (via standard diagnosis endpoint or service).
+    Does NOT run AI diagnosis locally.
+    """
+    try:
+        # Determine the raw transcript text
+        raw_transcript = ""
+        detected_lang = "hi-IN" # Default fallback
+        
+        if voice:
+            audio_content = await voice.read()
+            if audio_content:
+                # Transcribe voice to get native text
+                raw_transcript = await speech_service.transcribe_audio(
+                    audio_bytes=audio_content, language_code=detected_lang
+                )
+                # Auto-detect language prefix
+                detected_prefix = translation_service.detect_language(raw_transcript)
+                detected_lang = f"{detected_prefix}-IN"
+        elif text:
+            raw_transcript = text
+            # Auto-detect language prefix
+            detected_prefix = translation_service.detect_language(raw_transcript)
+            detected_lang = f"{detected_prefix}-IN"
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Either voice recording or text description must be provided."
+            )
+
+        lang_prefix = detected_lang.split("-")[0]
+        
+        # Translate to English
+        english_transcript = raw_transcript
+        if lang_prefix != "en":
+            english_transcript = translation_service.translate_to_english(
+                text=raw_transcript, source_language=lang_prefix
+            )
+
+        # Standardize the request and route to the Disease Intelligence API (via DiagnosisService)
+        # Note: Do not perform AI diagnosis locally - we delegate the actual diagnosis to standard DiagnosisService.
+        from services.diagnosis_service import DiagnosisService
+        diagnosis_srv = DiagnosisService()
+        
+        # Read and prepare image payloads
+        images_payload = []
+        for img in images:
+            img_bytes = await img.read()
+            mime_type = img.content_type or "image/jpeg"
+            images_payload.append((img_bytes, mime_type))
+            
+        # Call the actual AI Diagnosis Service
+        diag_result = await diagnosis_srv.diagnose_crop(
+            images_list=images_payload,
+            problem_transcript=english_transcript
+        )
+        
+        # Map crop type using scientific diagnosis first-word fallback if unspecified
+        inferred_crop = crop_type
+        if inferred_crop == "Unknown" and diag_result.disease_name:
+            inferred_crop = diag_result.disease_name.split()[0]
+            
+        # Store ticket in Firestore (as standard API behavior)
+        import base64
+        images_base64 = []
+        for img_bytes, mime_type in images_payload:
+            encoded_str = base64.b64encode(img_bytes).decode("utf-8")
+            images_base64.append(f"data:{mime_type};base64,{encoded_str}")
+            
+        ticket_payload = {
+            "farmer_name": farmer_name,
+            "crop_type": inferred_crop,
+            "problem_transcript": english_transcript,
+            "original_transcript": raw_transcript,
+            "language_code": detected_lang,
+            "disease_name": diag_result.disease_name,
+            "confidence": diag_result.confidence,
+            "severity_level": diag_result.severity_level,
+            "actionable_steps": diag_result.actionable_steps,
+            "requires_expert": diag_result.requires_expert,
+            "status": "PENDING",
+            "images": images_base64,
+            "created_at": datetime.utcnow().isoformat() + "Z"
+        }
+        if phone_number:
+            ticket_payload["phone_number"] = phone_number
+        if village_name:
+            ticket_payload["village_name"] = village_name
+        if latitude is not None:
+            ticket_payload["latitude"] = latitude
+        if longitude is not None:
+            ticket_payload["longitude"] = longitude
+            
+        # Store in Firestore collection
+        ticket_ref = db.collection("tickets").document()
+        await ticket_ref.set(ticket_payload)
+        
+        return {
+            "status": "success",
+            "ticket_id": ticket_ref.id,
+            "original_transcript": raw_transcript,
+            "english_transcript": english_transcript,
+            "language_detected": detected_lang,
+            "diagnosis": {
+                "disease_name": diag_result.disease_name,
+                "confidence": diag_result.confidence,
+                "severity_level": diag_result.severity_level,
+                "actionable_steps": diag_result.actionable_steps,
+                "requires_expert": diag_result.requires_expert
+            }
+        }
+    except Exception as e:
+        logger.exception("Error in intake preprocess-diagnose endpoint")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Preprocessing and routing failed: {str(e)}"
+        )

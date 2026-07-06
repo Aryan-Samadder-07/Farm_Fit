@@ -11,8 +11,13 @@ class DocumentChunk:
 
 class KnowledgeService:
     def __init__(self, api_key: str | None = None):
-        key = api_key or settings.gemini_api_key or None
-        self.client = genai.Client(api_key=key)
+        self.client = None
+        try:
+            key = api_key or settings.gemini_api_key or settings.GEMINI_API_KEY or None
+            if key:
+                self.client = genai.Client(api_key=key)
+        except Exception as e:
+            print(f"[KnowledgeService] Warning: Could not initialize Gemini client: {e}. Fallback vectorization active.")
         self.chunks: list[DocumentChunk] = []
         self._initialize_knowledge_base()
 

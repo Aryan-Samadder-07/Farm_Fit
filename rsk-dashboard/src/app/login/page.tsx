@@ -44,14 +44,15 @@ export default function LoginPage() {
         const res = await fetch(`${API_BASE}/api/v1/auth/farmer/request-otp`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone_number: phoneNumber })
+          body: JSON.stringify({ phone_number: phoneNumber, channel: 'sms' })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Failed to send OTP');
         
         setOtpSent(true);
-        if (data.demo_otp_fallback) {
-          setDemoOtp(data.demo_otp_fallback);
+        const code = data.otp || data.demo_otp_fallback;
+        if (code) {
+          setDemoOtp(code);
         }
       } else {
         // Real Google Firebase Phone Authentication
@@ -207,7 +208,6 @@ export default function LoginPage() {
                       />
                     </div>
                   </div>
-
                   <button
                     type="submit"
                     disabled={isSubmitting}

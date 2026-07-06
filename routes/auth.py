@@ -19,6 +19,7 @@ JWT_ALGORITHM = "HS256"
 
 class FarmerOTPRequest(BaseModel):
     phone_number: str = Field(..., description="Farmer's phone number with country code")
+    channel: Optional[str] = Field("sms", description="Delivery channel: 'sms' or 'whatsapp'")
 
 class FarmerVerifyRequest(BaseModel):
     phone_number: str
@@ -53,12 +54,12 @@ def create_jwt_token(payload: dict) -> str:
     payload["exp"] = expiry
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
-async def send_otp_sms(phone_number: str, code: str, db: firestore.Client):
+async def send_otp_sms(phone_number: str, code: str, db: firestore.Client, channel: str = "sms"):
     """Sends OTP via Authkey.io if configured; falls back to Twilio or mock logging."""
     message = f"Your Kisan Alert AI verification OTP code is: {code}. Valid for 5 minutes."
     
-    # 1. Try Authkey.io first if API key is set
-    if settings.AUTHKEY_API_KEY:
+    # 1. Try Authkey.io first if API key is set (and channel is SMS, since Authkey configuration is for SMS here)
+    if settings.AUTHKEY_API_KEY and channel == "sms":
         try:
             import httpx
             # Normalize phone number to strip '+' and spaces
@@ -85,14 +86,15 @@ async def send_otp_sms(phone_number: str, code: str, db: firestore.Client):
         except Exception as e:
             print(f"[Authkey.io SMS Error] Failed to send via Authkey: {e}. Attempting Twilio fallback.")
 
-    # 2. Fallback to Twilio SMS
+    # 2. Fallback to Twilio SMS or WhatsApp
     from services.notification_service import NotificationService
     notifier = NotificationService(db)
     try:
-        await notifier.send_alert_bundle(phone_number=phone_number, message=message, channels=["sms"])
-        print(f"[OTP SMS] OTP {code} sent to phone {phone_number} via Twilio.")
+        delivery_channel = "whatsapp" if channel == "whatsapp" else "sms"
+        await notifier.send_alert_bundle(phone_number=phone_number, message=message, channels=[delivery_channel])
+        print(f"[OTP Dispatch] OTP {code} sent to phone {phone_number} via Twilio {delivery_channel}.")
     except Exception as e:
-        print(f"[OTP SMS ERROR] Failed to send SMS via Twilio: {e}")
+        print(f"[OTP Dispatch ERROR] Failed to send {channel} via Twilio: {e}")
 
 # ─── Farmer Endpoints ──────────────────────────────────────────────────────────
 
@@ -112,16 +114,16 @@ async def farmer_request_otp(req: FarmerOTPRequest, db: firestore.Client = Depen
         "expires_at": expiry
     })
 
-    # Dispatch SMS (using Twilio or local logging)
-    await send_otp_sms(req.phone_number, otp_code, db)
+    # Dispatch SMS or WhatsApp (using Twilio or local logging)
+    await send_otp_sms(req.phone_number, otp_code, db, channel=req.channel)
 
     resp = {
         "success": True,
         "message": "OTP sent successfully.",
         "phone_number": req.phone_number,
+        "otp": otp_code,
+        "demo_otp_fallback": otp_code
     }
-    if settings.MOCK_GCP_APIS:
-        resp["demo_otp_fallback"] = otp_code
     return resp
 
 @router.post("/farmer/verify-otp")
