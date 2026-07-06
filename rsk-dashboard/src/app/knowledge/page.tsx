@@ -45,17 +45,17 @@ export default function KnowledgePage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col">
       <Navbar />
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 flex-grow w-full space-y-8">
         {/* Intro */}
         <div className="text-center space-y-3">
-          <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-400 mx-auto border border-emerald-500/20">
+          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-slate-700 mx-auto border border-slate-200 shadow-xs">
             <Database className="h-6 w-6" />
           </div>
-          <h2 className="text-2xl font-black tracking-tight">Agricultural RAG Search Engine</h2>
-          <p className="text-sm text-slate-400 max-w-lg mx-auto">
+          <h2 className="text-2xl font-black tracking-tight text-slate-900">Agricultural RAG Search Engine</h2>
+          <p className="text-sm text-slate-500 font-medium max-w-lg mx-auto">
             Query the vector database containing ICAR manuals, crop disease advisories, and state government schemes.
           </p>
         </div>
@@ -67,13 +67,13 @@ export default function KnowledgePage() {
             placeholder="E.g., How to cure tomato late blight? Or AP irrigation subsidy rules..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-grow bg-slate-900/50 border border-slate-800 focus:border-emerald-500 rounded-2xl px-5 py-3 text-sm focus:outline-none text-slate-100 transition duration-150"
+            className="flex-grow bg-white border border-slate-300 focus:border-slate-500 rounded-2xl px-5 py-3 text-sm focus:outline-none text-slate-800 transition duration-150 shadow-xs"
             required
           />
           <button
             type="submit"
             disabled={isSearching}
-            className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-6 py-3 rounded-2xl transition duration-150 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-6 py-3 rounded-2xl transition duration-150 flex items-center gap-2 cursor-pointer disabled:opacity-50 shadow-xs"
           >
             {isSearching ? (
               <RefreshCw className="h-4 w-4 animate-spin" />
@@ -85,7 +85,7 @@ export default function KnowledgePage() {
         </form>
 
         {searchError && (
-          <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 p-4 rounded-xl flex items-center gap-3 text-sm">
+          <div className="bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-xl flex items-center gap-3 text-sm animate-fade-in">
             <AlertCircle className="h-5 w-5 shrink-0" />
             <span>{searchError}</span>
           </div>
@@ -95,26 +95,26 @@ export default function KnowledgePage() {
         <div className="space-y-4">
           {results.length > 0 ? (
             results.map((doc, idx) => (
-              <div key={idx} className="bg-slate-900/40 border border-slate-800 p-6 rounded-2xl backdrop-blur-md space-y-3 relative overflow-hidden animate-fade-in">
+              <div key={idx} className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-3 relative overflow-hidden animate-fade-in">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
+                  <span className="text-xs font-bold text-emerald-700 flex items-center gap-1">
                     <FileText className="h-4 w-4" /> {doc.title}
                   </span>
-                  <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-bold border border-slate-700">
+                  <span className="text-[10px] bg-slate-50 text-slate-600 px-2 py-0.5 rounded font-bold border border-slate-200">
                     Similarity: {Math.round(doc.similarity * 100)}%
                   </span>
                 </div>
-                <p className="text-sm text-slate-300 leading-relaxed font-medium">
+                <p className="text-sm text-slate-700 leading-relaxed font-medium">
                   {doc.text}
                 </p>
-                <div className="text-[10px] text-slate-500 flex items-center gap-1 pt-2 border-t border-slate-900">
-                  <Sparkles className="h-3 w-3 text-emerald-400" /> Vector Matching Source Document Reference ID: {doc.doc_id}
+                <div className="text-[10px] text-slate-400 flex items-center gap-1 pt-2 border-t border-slate-100">
+                  <Sparkles className="h-3 w-3 text-slate-500" /> Vector Matching Source Document Reference ID: {doc.doc_id}
                 </div>
               </div>
             ))
           ) : (
             !isSearching && searchQuery && (
-              <div className="text-center py-10 text-slate-500 text-sm">
+              <div className="text-center py-10 text-slate-400 text-sm">
                 No matching reference documents found in vector space.
               </div>
             )
