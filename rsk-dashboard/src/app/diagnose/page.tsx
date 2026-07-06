@@ -158,7 +158,7 @@ export default function DiagnosePage() {
           {/* Form Column */}
           <div className="bg-white border border-slate-200 p-6 sm:p-8 rounded-xl shadow-xs space-y-6">
             <div className="flex items-center gap-2">
-              <Sparkles className="h-6 w-6 text-slate-800" />
+              <Sparkles className="h-6 w-6 text-slate-850" />
               <h2 className="text-xl font-bold text-slate-900">New Advisory Request</h2>
             </div>
             
@@ -252,7 +252,7 @@ export default function DiagnosePage() {
                       ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
                       : geoStatus === 'error'
                       ? 'bg-rose-50 border-rose-200 text-rose-600'
-                      : 'bg-white border-slate-350 text-slate-600 hover:bg-slate-50'
+                      : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50 shadow-xs'
                   }`}
                 >
                   {geoStatus === 'loading' ? (
@@ -273,7 +273,7 @@ export default function DiagnosePage() {
               </div>
 
               {diagError && (
-                <div className="bg-rose-55 border border-rose-200 text-rose-700 p-4 rounded-lg flex items-center gap-3 text-sm">
+                <div className="bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-xl flex items-center gap-3 text-sm">
                   <AlertCircle className="h-5 w-5 shrink-0 text-rose-500" />
                   <span>{diagError}</span>
                 </div>
@@ -299,7 +299,7 @@ export default function DiagnosePage() {
               <div className="bg-white border border-slate-200 p-6 sm:p-8 rounded-xl shadow-xs space-y-6">
                 
                 {/* AI Disclaimer Warning Banner (in bold) */}
-                <div className="bg-amber-50 border border-amber-250 p-4 rounded-lg text-center leading-relaxed">
+                <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl text-center leading-relaxed">
                   <span className="text-amber-700 font-extrabold text-xs uppercase tracking-wider block">
                     ⚠️ This diagnosis is made by an AI and may not be correct, please wait for an RSK expert for a follow up
                   </span>
@@ -316,20 +316,20 @@ export default function DiagnosePage() {
                 </div>
 
                 <div className="space-y-4">
-                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Classification</span>
                     <span className="text-lg font-extrabold text-slate-900 mt-1 block">{diagnosisResult.disease_name}</span>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                       <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Confidence Score</span>
                       <span className="text-2xl font-black text-emerald-600 mt-1 block">
                         {Math.round(diagnosisResult.confidence * 100)}%
                       </span>
                     </div>
 
-                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                       <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Severity Level</span>
                       <span className={`text-2xl font-black mt-1 block ${
                         diagnosisResult.severity_level === 'HIGH' ? 'text-rose-600' :
@@ -340,7 +340,7 @@ export default function DiagnosePage() {
                     </div>
                   </div>
 
-                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-2">
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Remediation Steps</span>
                     <ul className="space-y-2 pt-1">
                       {(Array.isArray(diagnosisResult.actionable_steps)
@@ -358,7 +358,7 @@ export default function DiagnosePage() {
               </div>
             ) : (
               <div className="text-center py-32 bg-white border border-slate-200 border-dashed rounded-xl shadow-xs h-full flex flex-col justify-center items-center">
-                <Cpu className="h-12 w-12 text-slate-300 stroke-1 mx-auto" />
+                <Cpu className="h-12 w-12 text-slate-350 stroke-1 mx-auto" />
                 <h3 className="text-base font-bold text-slate-400 mt-4">Waiting for Diagnostic Inputs</h3>
                 <p className="text-xs text-slate-400 mt-1.5 max-w-xs mx-auto">
                   Provide a farmer name, crop name, problem description, and leaf photograph on the left.

@@ -211,15 +211,13 @@ export default function ReviewPage({ params }: PageProps) {
 
   function getTranscript(t: Ticket): string {
     return t.voice_transcript || t.problem_transcript || '—';
-  }
-
-  if (isLoading) {
+  }  if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+      <div className="min-h-screen bg-slate-55/50 text-slate-800 flex flex-col">
         <Navbar />
         <div className="flex-grow flex flex-col justify-center items-center py-32 space-y-4">
-          <RefreshCw className="h-10 w-10 text-emerald-500 animate-spin" />
-          <p className="text-slate-400 text-sm font-semibold">Loading ticket profile for review...</p>
+          <RefreshCw className="h-10 w-10 text-slate-700 animate-spin" />
+          <p className="text-slate-500 text-sm font-semibold">Loading ticket profile for review...</p>
         </div>
       </div>
     );
@@ -227,12 +225,12 @@ export default function ReviewPage({ params }: PageProps) {
 
   if (!ticket) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+      <div className="min-h-screen bg-slate-55/50 text-slate-800 flex flex-col">
         <Navbar />
         <div className="max-w-md mx-auto py-24 text-center space-y-4">
           <AlertTriangle className="h-12 w-12 text-rose-500 mx-auto" />
-          <h3 className="text-lg font-bold text-slate-350">Ticket Profile Not Found</h3>
-          <button onClick={() => router.push('/')} className="bg-slate-900 border border-slate-800 hover:border-slate-700 px-4 py-2 rounded-xl text-xs font-bold text-slate-300 transition cursor-pointer">
+          <h3 className="text-lg font-bold text-slate-600">Ticket Profile Not Found</h3>
+          <button onClick={() => router.push('/')} className="bg-white border border-slate-300 hover:border-slate-400 px-4 py-2 rounded-xl text-xs font-bold text-slate-700 transition cursor-pointer shadow-sm">
             Return to Queue
           </button>
         </div>
@@ -241,41 +239,41 @@ export default function ReviewPage({ params }: PageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col">
       <Navbar />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 flex-grow">
         
         {/* Navigation / Header */}
-        <div className="flex flex-wrap items-center gap-4 border-b border-slate-900 pb-5">
+        <div className="flex flex-wrap items-center gap-4 border-b border-slate-200 pb-5">
           <button 
             onClick={() => router.push('/')}
-            className="flex items-center gap-2 bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-slate-700 text-slate-300 font-bold px-4 py-2.5 rounded-xl text-xs transition cursor-pointer"
+            className="flex items-center gap-2 bg-white hover:border-slate-350 border border-slate-200 text-slate-700 font-bold px-4 py-2.5 rounded-xl text-xs transition cursor-pointer shadow-sm"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to Portal
           </button>
           
           <div className="flex items-center gap-3">
-            <div className="bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20 text-emerald-400">
+            <div className="bg-white p-2.5 rounded-xl border border-slate-200 text-slate-700 shadow-sm">
               <Sprout className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-lg font-extrabold text-slate-200">RSK Expert Review</h2>
-              <p className="text-[10px] text-slate-500 font-mono mt-0.5">Reference ID: {ticket.id}</p>
+              <h2 className="text-lg font-extrabold text-slate-900">RSK Expert Review</h2>
+              <p className="text-[10px] text-slate-450 font-mono mt-0.5">Reference ID: {ticket.id}</p>
             </div>
           </div>
 
           <div className="ml-auto flex items-center gap-2">
             {ticket.on_hold && (
-              <span className="text-xs font-bold px-3 py-1.5 rounded-xl border bg-amber-500/10 text-amber-400 border-amber-500/20">
+              <span className="text-xs font-bold px-3 py-1.5 rounded-xl border bg-amber-50 text-amber-700 border-amber-250">
                 ON SITE VISIT DISPATCHED
               </span>
             )}
             <span className={`text-xs font-extrabold px-3 py-1.5 rounded-xl border ${
-              ticket.status === 'RESOLVED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-              ticket.status === 'IN_PROGRESS' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-              'bg-rose-500/10 text-rose-400 border-rose-500/20'
+              ticket.status === 'RESOLVED' ? 'bg-emerald-50 text-emerald-700 border-emerald-250' :
+              ticket.status === 'IN_PROGRESS' ? 'bg-amber-50 text-amber-700 border-amber-250' :
+              'bg-rose-50 text-rose-700 border-rose-250'
             }`}>{ticket.status}</span>
           </div>
         </div>
@@ -287,52 +285,52 @@ export default function ReviewPage({ params }: PageProps) {
           <div className="lg:col-span-7 space-y-6">
             
             {/* Farmer contact card */}
-            <div className="bg-slate-900/40 border border-slate-800 p-6 rounded-2xl space-y-4">
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Farmer Contact Profile</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-950 p-4 rounded-xl border border-slate-900 text-xs">
+            <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-4">
+              <h3 className="text-xs font-bold text-slate-450 uppercase tracking-widest">Farmer Contact Profile</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
                 <div className="space-y-1">
-                  <span className="text-slate-500 block">Farmer Name</span>
-                  <strong className="text-slate-200 font-bold flex items-center gap-1.5 text-sm">
-                    <User className="h-4 w-4 text-emerald-400" /> {ticket.farmer_name || 'Anonymous'}
+                  <span className="text-slate-400 block">Farmer Name</span>
+                  <strong className="text-slate-800 font-bold flex items-center gap-1.5 text-sm">
+                    <User className="h-4 w-4 text-slate-500" /> {ticket.farmer_name || 'Anonymous'}
                   </strong>
                 </div>
                 <div className="space-y-1">
-                  <span className="text-slate-500 block">Village / Area</span>
-                  <strong className="text-slate-200 font-bold flex items-center gap-1.5 text-sm">
-                    <MapPin className="h-4 w-4 text-emerald-400" /> {ticket.village_name || 'Nellore'}
+                  <span className="text-slate-400 block">Village / Area</span>
+                  <strong className="text-slate-800 font-bold flex items-center gap-1.5 text-sm">
+                    <MapPin className="h-4 w-4 text-slate-500" /> {ticket.village_name || 'Nellore'}
                   </strong>
                 </div>
                 <div className="space-y-1">
-                  <span className="text-slate-500 block">Contact Number</span>
-                  <strong className="text-slate-200 font-bold flex items-center gap-1.5 text-sm font-mono">
-                    <Phone className="h-4 w-4 text-emerald-400" /> {ticket.phone_number || '+918902734851'}
+                  <span className="text-slate-400 block">Contact Number</span>
+                  <strong className="text-slate-850 font-bold flex items-center gap-1.5 text-sm font-mono">
+                    <Phone className="h-4 w-4 text-slate-500" /> {ticket.phone_number || '+918902734851'}
                   </strong>
                 </div>
               </div>
             </div>
 
             {/* Farmer Voice Transcript */}
-            <div className="bg-slate-900/40 border border-slate-800 p-6 rounded-2xl space-y-3">
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Voice Transcript / Report</h3>
-              <div className="bg-slate-950 p-4 rounded-xl border border-slate-900 italic text-slate-300 text-sm leading-relaxed">
+            <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-3">
+              <h3 className="text-xs font-bold text-slate-450 uppercase tracking-widest">Voice Transcript / Report</h3>
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 italic text-slate-700 text-sm leading-relaxed">
                 "{getTranscript(ticket)}"
               </div>
             </div>
 
             {/* Image attachments (Click to zoom, no download) */}
-            <div className="bg-slate-900/40 border border-slate-800 p-6 rounded-2xl space-y-4">
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Submitted Image Attachments</h3>
+            <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-4">
+              <h3 className="text-xs font-bold text-slate-450 uppercase tracking-widest">Submitted Image Attachments</h3>
               {ticket.images && ticket.images.length > 0 ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   {ticket.images.map((imgUrl, idx) => (
                     <div 
                       key={idx} 
                       onClick={() => setActiveLightboxImg(imgUrl)}
-                      className="group relative h-36 rounded-xl overflow-hidden bg-slate-950 border border-slate-900 cursor-pointer hover:border-emerald-500/50 transition duration-200"
+                      className="group relative h-36 rounded-xl overflow-hidden bg-slate-50 border border-slate-200 cursor-pointer hover:border-slate-350 transition duration-200 shadow-xs"
                     >
-                      <img src={imgUrl} alt={`Attachment Leaf ${idx + 1}`} className="object-cover h-full w-full group-hover:scale-105 transition duration-300" />
-                      <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
-                        <span className="text-[10px] font-bold text-white bg-slate-900/80 px-2 py-1 rounded-lg border border-slate-700">
+                      <img src={imgUrl} alt={`Attachment Leaf ${idx + 1}`} className="object-cover h-full w-full group-hover:scale-102 transition duration-305" />
+                      <div className="absolute inset-0 bg-slate-900/10 opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
+                        <span className="text-[10px] font-bold text-slate-800 bg-white/90 px-2 py-1 rounded-lg border border-slate-200 shadow-sm">
                           View Attachment
                         </span>
                       </div>
@@ -340,8 +338,8 @@ export default function ReviewPage({ params }: PageProps) {
                   ))}
                 </div>
               ) : (
-                <div className="py-8 bg-slate-950/40 border border-dashed border-slate-800 rounded-xl text-center text-xs text-slate-500 space-y-1">
-                  <ImageIcon className="h-5 w-5 mx-auto text-slate-650" />
+                <div className="py-8 bg-slate-50/50 border border-dashed border-slate-250 rounded-xl text-center text-xs text-slate-450 space-y-1">
+                  <ImageIcon className="h-5 w-5 mx-auto text-slate-400" />
                   <p>No leaf images submitted with this ticket.</p>
                 </div>
               )}
@@ -353,25 +351,25 @@ export default function ReviewPage({ params }: PageProps) {
           <div className="lg:col-span-5 space-y-6">
 
             {/* AI Diagnostics details (Premium display) */}
-            <div className="bg-slate-900/40 border border-slate-800 p-6 rounded-2xl space-y-5">
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">AI Ingestion Diagnosis</h3>
+            <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-5">
+              <h3 className="text-xs font-bold text-slate-450 uppercase tracking-widest">AI Ingestion Diagnosis</h3>
               
               <div className="space-y-4 text-xs">
-                <div className="bg-slate-950 p-4 rounded-xl border border-slate-900">
-                  <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block mb-1">Crop Classification</span>
-                  <span className="text-sm font-black text-slate-100 block">{ticket.crop_type || 'Unknown'}</span>
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  <span className="text-[9px] text-slate-450 font-bold uppercase tracking-wider block mb-1">Crop Classification</span>
+                  <span className="text-sm font-black text-slate-800 block">{ticket.crop_type || 'Unknown'}</span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-slate-950 p-4 rounded-xl border border-slate-900">
-                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block mb-1">AI Classification</span>
-                    <span className="text-sm font-black text-slate-100 block">{ticket.disease_name || 'Healthy'}</span>
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <span className="text-[9px] text-slate-450 font-bold uppercase tracking-wider block mb-1">AI Classification</span>
+                    <span className="text-sm font-black text-slate-800 block">{ticket.disease_name || 'Healthy'}</span>
                   </div>
-                  <div className="bg-slate-950 p-4 rounded-xl border border-slate-900">
-                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block mb-1">Severity & Confidence</span>
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <span className="text-[9px] text-slate-450 font-bold uppercase tracking-wider block mb-1">Severity & Confidence</span>
                     <span className={`text-sm font-black block ${
-                      ticket.severity_level === 'HIGH' ? 'text-rose-400' :
-                      ticket.severity_level === 'MEDIUM' ? 'text-amber-400' : 'text-emerald-400'
+                      ticket.severity_level === 'HIGH' ? 'text-rose-600' :
+                      ticket.severity_level === 'MEDIUM' ? 'text-amber-600' : 'text-emerald-600'
                     }`}>
                       {ticket.severity_level} ({ticket.confidence !== undefined ? `${Math.round(ticket.confidence * 100)}%` : '—'})
                     </span>
@@ -379,12 +377,12 @@ export default function ReviewPage({ params }: PageProps) {
                 </div>
 
                 {getSteps(ticket).length > 0 && (
-                  <div className="bg-slate-950 p-4 rounded-xl border border-slate-900 space-y-2">
-                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">AI Suggested Action Steps</span>
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">AI Suggested Action Steps</span>
                     <ul className="space-y-1.5">
                       {getSteps(ticket).map((step, i) => (
-                        <li key={i} className="flex gap-2 text-slate-350 leading-relaxed">
-                          <span className="text-emerald-400 font-bold shrink-0">•</span>
+                        <li key={i} className="flex gap-2 text-slate-600 leading-relaxed text-[11px]">
+                          <span className="text-emerald-600 font-bold shrink-0">•</span>
                           <p>{step}</p>
                         </li>
                       ))}
@@ -395,18 +393,18 @@ export default function ReviewPage({ params }: PageProps) {
             </div>
 
             {/* Expert Resolution advisory form */}
-            <div className="bg-slate-900/40 border border-slate-800 p-6 rounded-2xl space-y-4">
+            <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Expert advisory</h3>
+                <h3 className="text-xs font-bold text-slate-450 uppercase tracking-widest">Expert advisory</h3>
                 <button
                   type="button"
                   onClick={handleAutofill}
                   disabled={isAutofilling}
-                  className="flex items-center gap-1 text-[10px] font-bold text-violet-400 hover:text-violet-300 border border-violet-500/20 bg-violet-500/10 px-2 py-1 rounded-lg transition cursor-pointer disabled:opacity-50"
+                  className="flex items-center gap-1 text-[10px] font-bold text-slate-700 hover:border-slate-350 border border-slate-200 bg-white px-2 py-1 rounded-lg transition cursor-pointer disabled:opacity-50 shadow-sm"
                 >
                   {isAutofilling
                     ? <><RefreshCw className="h-3 w-3 animate-spin" /> Generating…</>
-                    : <><Sparkles className="h-3 w-3" /> AI Autofill</>
+                    : <><Sparkles className="h-3 w-3 text-slate-500" /> AI Autofill</>
                   }
                 </button>
               </div>
@@ -416,7 +414,7 @@ export default function ReviewPage({ params }: PageProps) {
                 placeholder="Publish agronomic field instructions for the farmer..."
                 value={remediationText} 
                 onChange={e => setRemediationText(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none transition resize-none leading-relaxed" 
+                className="w-full bg-white border border-slate-350 focus:border-slate-550 rounded-xl px-4 py-3 text-xs text-slate-800 focus:outline-none transition resize-none leading-relaxed" 
               />
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
@@ -424,7 +422,7 @@ export default function ReviewPage({ params }: PageProps) {
                 <button 
                   onClick={() => setShowHoldPrompt(true)}
                   disabled={isSaving || ticket.on_hold}
-                  className="w-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/25 font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 text-xs tracking-wider uppercase"
+                  className="w-full bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 text-xs tracking-wider uppercase shadow-xs"
                 >
                   <MapPinned className="h-4 w-4" />
                   {ticket.on_hold ? 'On-Site Visited' : 'Hold for On-Site'}
@@ -434,7 +432,7 @@ export default function ReviewPage({ params }: PageProps) {
                 <button 
                   onClick={handlePublishAdvisory} 
                   disabled={isSaving}
-                  className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 text-xs tracking-wider uppercase"
+                  className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 text-xs tracking-wider uppercase shadow-sm"
                 >
                   {isSaving ? (
                     <><RefreshCw className="h-4 w-4 animate-spin" /> Saving...</>
@@ -454,11 +452,11 @@ export default function ReviewPage({ params }: PageProps) {
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center z-50 p-4">
           <button 
             onClick={() => setActiveLightboxImg(null)}
-            className="absolute top-6 right-6 p-2 bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-100 rounded-xl cursor-pointer transition"
+            className="absolute top-6 right-6 p-2 bg-white border border-slate-200 text-slate-700 rounded-xl cursor-pointer transition shadow-lg"
           >
             <X className="h-5 w-5" />
           </button>
-          <div className="max-w-4xl max-h-[85vh] overflow-hidden rounded-2xl border border-slate-850 shadow-2xl">
+          <div className="max-w-4xl max-h-[85vh] overflow-hidden rounded-2xl border border-slate-200 shadow-2xl">
             <img src={activeLightboxImg} alt="Attachment Zoomed View" className="object-contain max-h-[85vh] max-w-full" />
           </div>
         </div>
@@ -467,49 +465,49 @@ export default function ReviewPage({ params }: PageProps) {
       {/* ── HOLD FOR ON-SITE TASK DISPATCH PROMPT MODAL ───────────────────────── */}
       {showHoldPrompt && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 sm:p-8 space-y-6 shadow-2xl relative animate-fade-in">
+          <div className="bg-white border border-slate-250 rounded-3xl max-w-md w-full p-6 sm:p-8 space-y-6 shadow-2xl relative animate-fade-in text-slate-800">
             <button 
               onClick={() => setShowHoldPrompt(false)}
-              className="absolute top-6 right-6 p-1.5 text-slate-400 hover:text-slate-100 bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-xl transition cursor-pointer"
+              className="absolute top-6 right-6 p-1.5 text-slate-400 hover:text-slate-650 bg-white border border-slate-200 rounded-xl transition cursor-pointer"
             >
               <X className="h-4 w-4" />
             </button>
 
-            <div className="flex items-center gap-2.5 border-b border-slate-800/60 pb-4">
-              <div className="bg-amber-500/10 p-2 rounded-xl border border-amber-500/20 text-amber-400">
+            <div className="flex items-center gap-2.5 border-b border-slate-100 pb-4">
+              <div className="bg-amber-50 p-2 rounded-xl border border-amber-200 text-amber-700">
                 <Users className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="text-base font-extrabold text-slate-200 font-sans">On-Site Visit Assignment</h3>
-                <p className="text-[10px] text-slate-500">Dispatch details for field expert</p>
+                <h3 className="text-base font-extrabold text-slate-850 font-sans">On-Site Visit Assignment</h3>
+                <p className="text-[10px] text-slate-450 font-medium">Dispatch details for field expert</p>
               </div>
             </div>
 
             <form onSubmit={handleHoldOnSiteSubmit} className="space-y-4 text-xs">
               <div className="space-y-1.5">
-                <label className="block text-[10px] text-slate-550 font-bold uppercase tracking-wider">Expert Name (On-Site Duty)</label>
+                <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider">Expert Name (On-Site Duty)</label>
                 <input 
                   type="text" 
                   value={holdExpertName} 
                   onChange={e => setHoldExpertName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-850 focus:border-emerald-500 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none transition font-sans text-xs"
+                  className="w-full bg-white border border-slate-300 focus:border-slate-500 rounded-xl px-4 py-2.5 text-slate-800 focus:outline-none transition font-sans text-xs"
                   required 
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-[10px] text-slate-550 font-bold uppercase tracking-wider">Expert Contact Number</label>
+                <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider">Expert Contact Number</label>
                 <input 
                   type="text" 
                   value={holdExpertPhone} 
                   onChange={e => setHoldExpertPhone(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-855 focus:border-emerald-500 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none transition font-mono text-xs"
+                  className="w-full bg-white border border-slate-300 focus:border-slate-500 rounded-xl px-4 py-2.5 text-slate-800 focus:outline-none transition font-mono text-xs"
                   required 
                 />
               </div>
 
-              <div className="bg-slate-950 p-4 rounded-xl border border-slate-850 text-slate-400 space-y-1.5 scale-95 origin-left">
-                <span className="text-[9px] text-slate-550 font-bold uppercase block">Generated Villager Alert</span>
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-slate-600 space-y-1.5 scale-95 origin-left">
+                <span className="text-[9px] text-slate-450 font-bold uppercase block">Generated Villager Alert</span>
                 <p className="italic font-sans text-[11px] leading-relaxed">
                   "Dear {ticket.farmer_name || 'Farmer'}, an RSK expert visit has been scheduled for your farm in the next 24 hours. Please contact RSK expert {holdExpertName} at {holdExpertPhone} to fix the exact time and location."
                 </p>
@@ -518,7 +516,7 @@ export default function ReviewPage({ params }: PageProps) {
               <button 
                 type="submit" 
                 disabled={isSaving}
-                className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold py-3 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 tracking-wider text-xs uppercase"
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold py-3 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 tracking-wider text-xs uppercase shadow-sm"
               >
                 {isSaving ? (
                   <><RefreshCw className="h-4 w-4 animate-spin" /> Assigning...</>
@@ -535,8 +533,8 @@ export default function ReviewPage({ params }: PageProps) {
       {toastMessage && (
         <div className={`fixed bottom-6 right-6 z-50 font-extrabold px-6 py-4 rounded-2xl shadow-xl flex items-center gap-2 border text-sm ${
           toastMessage.type === 'error'
-            ? 'bg-rose-500 text-white border-rose-400 shadow-rose-500/10'
-            : 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-emerald-500/10'
+            ? 'bg-rose-500 text-white border-rose-455 shadow-rose-500/10'
+            : 'bg-emerald-500 text-slate-950 border-emerald-450 shadow-emerald-500/10'
         }`}>
           {toastMessage.type === 'error' ? <AlertTriangle className="h-5 w-5 shrink-0" /> : <CheckCircle className="h-5 w-5 shrink-0" />}
           <span>{toastMessage.text}</span>

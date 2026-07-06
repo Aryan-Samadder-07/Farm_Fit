@@ -190,10 +190,10 @@ export default function AgronomyPage() {
                   disabled={geoStatus === 'loading'}
                   className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border font-semibold text-sm transition cursor-pointer ${
                     geoStatus === 'success'
-                      ? 'bg-emerald-55 border-emerald-200 text-emerald-700'
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
                       : geoStatus === 'error'
                       ? 'bg-rose-50 border-rose-200 text-rose-600'
-                      : 'bg-white border-slate-350 text-slate-650 hover:bg-slate-50'
+                      : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50'
                   }`}
                 >
                   {geoStatus === 'loading' ? (
@@ -251,7 +251,7 @@ export default function AgronomyPage() {
           // Center-aligned results layout with all components in a clean, vertical stack
           <div className="w-full max-w-2xl space-y-6 animate-fade-in">
             
-            {/* Header: Climate Engine Context + Purple Arrow Target (Change Inputs) */}
+            {/* Header: Climate Engine Context + Change Inputs */}
             <div className="bg-white border border-slate-200 p-4 rounded-xl flex items-center justify-between gap-3 shadow-xs">
               <div>
                 <span className="text-[10px] text-slate-400 font-bold uppercase block tracking-wider">Climate Engine Context</span>
@@ -269,7 +269,7 @@ export default function AgronomyPage() {
 
             {/* Top Recommended Crops List */}
             <div className="space-y-4">
-              <h3 className="text-sm font-extrabold text-slate-400 uppercase tracking-wider">Top Recommended Crops</h3>
+              <h3 className="text-sm font-extrabold text-slate-500 uppercase tracking-wider">Top Recommended Crops</h3>
               
               <div className="grid grid-cols-1 gap-3">
                 {recommendationResult.recommendations.map((rec: any, index: number) => {
@@ -316,7 +316,7 @@ export default function AgronomyPage() {
               </div>
             </div>
 
-            {/* Mandi Pricing Intelligence Card (Green Box Target - moved below crops list) */}
+            {/* Mandi Pricing Intelligence Card */}
             {matchedMarketData ? (
               <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-4 animate-fade-in shadow-xs">
                 <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-2">
@@ -353,7 +353,7 @@ export default function AgronomyPage() {
               </div>
             )}
 
-            {/* Government Schemes Card (Blue Box Target - moved below Mandi card) */}
+            {/* Government Schemes Card */}
             {matchedSchemesData && matchedSchemesData.schemes && matchedSchemesData.schemes.length > 0 && (
               <div className="bg-white border border-slate-200 p-5 rounded-xl space-y-3 animate-fade-in shadow-xs">
                 <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-2">

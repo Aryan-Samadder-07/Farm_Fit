@@ -153,8 +153,7 @@ export default function GISMapPage() {
         attributionControl: false
       });
       leafletMap.current = map;
-
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
         maxZoom: 18
       }).addTo(map);
@@ -163,21 +162,21 @@ export default function GISMapPage() {
       farmerFeatures.forEach((feature: any) => {
         const { properties, geometry } = feature;
         const [lng, lat] = geometry.coordinates;
-        const severityColor = properties.severity_level === 'HIGH' ? '#f87171' :
-                              properties.severity_level === 'MEDIUM' ? '#fb923c' : '#34d399';
+        const severityColor = properties.severity_level === 'HIGH' ? '#dc2626' :
+                              properties.severity_level === 'MEDIUM' ? '#d97706' : '#059669';
         const icon = L.divIcon({
           className: '',
-          html: `<div style="width:12px;height:12px;border-radius:50%;background:${severityColor};border:2px solid rgba(255,255,255,0.6);box-shadow:0 0 8px ${severityColor}88;"></div>`,
+          html: `<div style="width:12px;height:12px;border-radius:50%;background:${severityColor};border:2px solid rgba(255,255,255,0.95);box-shadow:0 2px 8px ${severityColor}77;"></div>`,
           iconSize: [12, 12],
           iconAnchor: [6, 6]
         });
         L.marker([lat, lng], { icon }).addTo(map).bindPopup(`
-          <div style="background:#0f172a;color:#f1f5f9;padding:10px 12px;border-radius:10px;font-size:12px;min-width:180px;border:1px solid #1e293b;">
-            <p style="color:#34d399;font-weight:bold;margin:0 0 6px;">${properties.farmer_name}</p>
-            <p style="margin:0 0 2px;">Crop: <strong>${properties.crop_type}</strong></p>
-            <p style="margin:0 0 2px;">Disease: <strong>${properties.disease_name}</strong></p>
+          <div style="background:#ffffff;color:#1e293b;padding:10px 12px;border-radius:10px;font-size:12px;min-width:180px;border:1px solid #e2e8f0;box-shadow:0 4px 6px -1px rgba(0,0,0,0.08);">
+            <p style="color:#059669;font-weight:bold;margin:0 0 6px;">${properties.farmer_name}</p>
+            <p style="margin:0 0 2px;color:#334155;">Crop: <strong style="color:#0f172a;">${properties.crop_type}</strong></p>
+            <p style="margin:0 0 2px;color:#334155;">Disease: <strong style="color:#0f172a;">${properties.disease_name}</strong></p>
             <p style="margin:0 0 2px;color:${severityColor};">Severity: ${properties.severity_level}</p>
-            <p style="margin:0;opacity:0.6">AI Confidence: ${Math.round(properties.confidence * 100)}%</p>
+            <p style="margin:0;color:#64748b;">AI Confidence: ${Math.round(properties.confidence * 100)}%</p>
           </div>`, { className: 'leaflet-custom-popup' });
       });
 
@@ -185,23 +184,23 @@ export default function GISMapPage() {
       outbreakFeatures.forEach((feature: any) => {
         const { properties, geometry } = feature;
         const [lng, lat] = geometry.coordinates;
-        L.circle([lat, lng], { radius: 5000, color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.06, weight: 1.5, dashArray: '5, 5' }).addTo(map);
+        L.circle([lat, lng], { radius: 5000, color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.05, weight: 1.5, dashArray: '5, 5' }).addTo(map);
         const outbreakIcon = L.divIcon({
           className: '',
           html: `<div style="position:relative;width:28px;height:28px;display:flex;align-items:center;justify-content:center;">
-            <div style="position:absolute;width:28px;height:28px;border-radius:50%;background:#ef4444;opacity:0.25;animation:ping 2s infinite;"></div>
-            <div style="width:16px;height:16px;border-radius:50%;background:#ef4444;border:2.5px solid white;box-shadow:0 0 12px #ef444488;z-index:1;"></div>
+            <div style="position:absolute;width:28px;height:28px;border-radius:50%;background:#ef4444;opacity:0.2;animation:ping 2s infinite;"></div>
+            <div style="width:16px;height:16px;border-radius:50%;background:#ef4444;border:2.5px solid white;box-shadow:0 2px 8px rgba(239,68,68,0.5);z-index:1;"></div>
           </div>`,
           iconSize: [28, 28], iconAnchor: [14, 14]
         });
         L.marker([lat, lng], { icon: outbreakIcon }).addTo(map).bindPopup(`
-          <div style="background:#0f172a;color:#f1f5f9;padding:10px 12px;border-radius:10px;font-size:12px;min-width:200px;border:1px solid #ef444466;">
-            <p style="color:#f87171;font-weight:800;margin:0 0 6px;">⚠️ OUTBREAK ALERT</p>
-            <p style="margin:0 0 2px;">Disease: <strong>${properties.disease_name}</strong></p>
-            <p style="margin:0 0 2px;">Village: <strong>${properties.village}</strong></p>
-            <p style="margin:0 0 2px;">District: ${properties.district}</p>
-            <p style="margin:0 0 2px;color:#f87171;">Affected Farmers: <strong>${properties.affected_farmer_count}</strong></p>
-            <p style="margin:0;opacity:0.6;">Avg. AI Confidence: ${Math.round(properties.average_confidence * 100)}%</p>
+          <div style="background:#ffffff;color:#1e293b;padding:10px 12px;border-radius:10px;font-size:12px;min-width:200px;border:1.5px solid #fca5a5;box-shadow:0 4px 6px -1px rgba(0,0,0,0.08);">
+            <p style="color:#dc2626;font-weight:800;margin:0 0 6px;">⚠️ OUTBREAK ALERT</p>
+            <p style="margin:0 0 2px;color:#334155;">Disease: <strong style="color:#0f172a;">${properties.disease_name}</strong></p>
+            <p style="margin:0 0 2px;color:#334155;">Village: <strong style="color:#0f172a;">${properties.village}</strong></p>
+            <p style="margin:0 0 2px;color:#334155;">District: ${properties.district}</p>
+            <p style="margin:0 0 2px;color:#dc2626;">Affected Farmers: <strong>${properties.affected_farmer_count}</strong></p>
+            <p style="margin:0;color:#64748b;">Avg. AI Confidence: ${Math.round(properties.average_confidence * 100)}%</p>
           </div>`, { className: 'leaflet-custom-popup' });
       });
 
@@ -214,8 +213,11 @@ export default function GISMapPage() {
 
   useEffect(() => {
     loadMap();
+<<<<<<< HEAD
     return () => { if (leafletMap.current) { leafletMap.current.remove(); leafletMap.current = null; } };
-  }, []);  return (
+  }, []);
+
+  return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col">
       <Navbar />
 
@@ -372,8 +374,8 @@ export default function GISMapPage() {
 
                       {/* GPS Capture */}
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                          Outbreak GPS Coordinates <span className="text-rose-400">*</span>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                          Outbreak GPS Coordinates <span className="text-rose-600">*</span>
                         </label>
                         <button type="button" onClick={handleGetLocation} disabled={geoStatus === 'loading'}
                           className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg border font-semibold text-sm transition cursor-pointer ${
@@ -396,13 +398,13 @@ export default function GISMapPage() {
                         {geoStatus !== 'success' && (
                           <div className="grid grid-cols-2 gap-2 mt-2">
                             <div>
-                              <label className="block text-[10px] text-slate-500 mb-1">Latitude (manual)</label>
+                              <label className="block text-[10px] text-slate-400 mb-1">Latitude (manual)</label>
                               <input type="number" step="0.0001" placeholder="14.4426"
                                 onChange={e => setRegLat(parseFloat(e.target.value))}
                                 className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-slate-500 transition" />
                             </div>
                             <div>
-                              <label className="block text-[10px] text-slate-500 mb-1">Longitude (manual)</label>
+                              <label className="block text-[10px] text-slate-400 mb-1">Longitude (manual)</label>
                               <input type="number" step="0.0001" placeholder="79.9865"
                                 onChange={e => setRegLon(parseFloat(e.target.value))}
                                 className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-slate-500 transition" />
@@ -450,7 +452,7 @@ export default function GISMapPage() {
 
       <style>{`
         .leaflet-custom-popup .leaflet-popup-content-wrapper { background: transparent; border: none; box-shadow: none; padding: 0; }
-        .leaflet-custom-popup .leaflet-popup-tip { background: #0f172a; }
+        .leaflet-custom-popup .leaflet-popup-tip { background: #ffffff; }
         .leaflet-custom-popup .leaflet-popup-content { margin: 0; }
         @keyframes ping { 0% { transform: scale(1); opacity: 0.4; } 70% { transform: scale(2); opacity: 0; } 100% { transform: scale(1); opacity: 0; } }
       `}</style>
