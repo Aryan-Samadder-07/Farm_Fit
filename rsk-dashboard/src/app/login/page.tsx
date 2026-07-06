@@ -6,9 +6,10 @@ import { useAuth } from '../context/AuthContext';
 import { auth } from '../../lib/firebase';
 import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 import { Sprout, Phone, Lock, User, MapPin, Send, CheckCircle, AlertCircle, RefreshCw, KeyRound } from 'lucide-react';
+import Script from 'next/script';
 
 export default function LoginPage() {
-  const { loginFarmer, loginFarmerFirebase, loginProfessional } = useAuth();
+  const { loginFarmer, loginFarmerFirebase, loginProfessional, loginWithGoogle } = useAuth();
   
   // Auth Mode: 'FARMER' | 'PROFESSIONAL'
   const [roleMode, setRoleMode] = useState<'FARMER' | 'PROFESSIONAL'>('FARMER');
@@ -106,6 +107,45 @@ export default function LoginPage() {
     }
   };
 
+  const handleGoogleCredentialResponse = async (response: any) => {
+    setIsSubmitting(true);
+    setErrorMsg(null);
+    try {
+      const idToken = response.credential;
+      await loginWithGoogle(idToken, roleMode);
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(err.message || 'Google authentication failed.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const initGoogleSignIn = () => {
+    if (typeof window !== 'undefined' && (window as any).google) {
+      (window as any).google.accounts.id.initialize({
+        client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "324957144254-knfqnf3njmsfhbjb0qpokckcmsnuhalu.apps.googleusercontent.com",
+        callback: handleGoogleCredentialResponse
+      });
+      (window as any).google.accounts.id.renderButton(
+        document.getElementById("google-signin-btn"),
+        { theme: "filled_dark", size: "large", text: "signin_with", shape: "rectangular", width: "380" }
+      );
+    }
+  };
+
+  React.useEffect(() => {
+    // Retry initialization a couple of times if the GSI library script is loading asynchronously
+    initGoogleSignIn();
+    const interval = setInterval(() => {
+      if ((window as any).google) {
+        initGoogleSignIn();
+        clearInterval(interval);
+      }
+    }, 500);
+    return () => clearInterval(interval);
+  }, [roleMode]);
+
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
       
@@ -153,9 +193,16 @@ export default function LoginPage() {
           </div>
 
           {errorMsg && (
-            <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 p-4 rounded-xl flex items-center gap-3 text-xs leading-relaxed animate-fade-in">
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              <span>{errorMsg}</span>
+            <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 p-4 rounded-xl flex flex-col gap-2 text-xs leading-relaxed animate-fade-in">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+              {errorMsg.toLowerCase().includes('sign up') && (
+                <Link href="/signup" className="text-emerald-400 hover:text-emerald-300 font-bold underline pl-7">
+                  Go to Signup Page &rarr;
+                </Link>
+              )}
             </div>
           )}
 
@@ -328,11 +375,29 @@ export default function LoginPage() {
             </form>
           )}
 
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center" aria-hidden="true">
+              <div className="w-full border-t border-slate-800" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-slate-900 px-2 text-slate-500">OR</span>
+            </div>
+          </div>
+
+          <div className="flex justify-center w-full min-h-[44px]" id="google-signin-btn"></div>
+
         </div>
       </div>
       
       {/* Invisible reCAPTCHA container required for Firebase Phone Auth */}
       <div id="recaptcha-container"></div>
+
+      {/* Official Google Identity Services SDK */}
+      <Script 
+        src="https://accounts.google.com/gsi/client" 
+        onLoad={initGoogleSignIn}
+        strategy="afterInteractive"
+      />
     </div>
   );
 }

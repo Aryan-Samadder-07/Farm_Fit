@@ -20,6 +20,8 @@ interface AuthContextType {
   loginFarmerFirebase: (name: string, villageName: string, idToken: string) => Promise<boolean>;
   signupProfessional: (payload: any) => Promise<boolean>;
   loginProfessional: (email: string, password: string) => Promise<boolean>;
+  loginWithGoogle: (idToken: string, rolePreference: string, villageName?: string) => Promise<boolean>;
+  signupWithGoogle: (payload: any) => Promise<boolean>;
   logout: () => void;
 }
 
@@ -220,6 +222,68 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const loginWithGoogle = async (idToken: string, rolePreference: string, villageName: string = "Google Region") => {
+    try {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+      const res = await fetch(`${API_BASE}/api/v1/auth/google/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id_token: idToken,
+          role_preference: rolePreference,
+          village_name: villageName
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Google authentication verification failed');
+
+      localStorage.setItem('kisan_auth_token', data.token);
+      localStorage.setItem('kisan_auth_user', JSON.stringify({ ...data.user, role: data.role }));
+      
+      setToken(data.token);
+      setUser({ ...data.user, role: data.role });
+      
+      if (data.role === 'FARMER') {
+        router.push('/diagnose');
+      } else {
+        router.push('/');
+      }
+      return true;
+    } catch (err) {
+      console.error(err);
+      throw err;
+    }
+  };
+
+  const signupWithGoogle = async (payload: any) => {
+    try {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+      const res = await fetch(`${API_BASE}/api/v1/auth/google/signup/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Google registration failed');
+
+      localStorage.setItem('kisan_auth_token', data.token);
+      localStorage.setItem('kisan_auth_user', JSON.stringify({ ...data.user, role: data.role }));
+      
+      setToken(data.token);
+      setUser({ ...data.user, role: data.role });
+      
+      if (data.role === 'FARMER') {
+        router.push('/diagnose');
+      } else {
+        router.push('/');
+      }
+      return true;
+    } catch (err) {
+      console.error(err);
+      throw err;
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('kisan_auth_token');
     localStorage.removeItem('kisan_auth_user');
@@ -229,7 +293,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, loginFarmer, loginFarmerFirebase, signupProfessional, loginProfessional, logout }}>
+    <AuthContext.Provider value={{ user, token, isLoading, loginFarmer, loginFarmerFirebase, signupProfessional, loginProfessional, loginWithGoogle, signupWithGoogle, logout }}>
       {children}
     </AuthContext.Provider>
   );

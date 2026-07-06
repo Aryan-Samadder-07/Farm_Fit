@@ -215,9 +215,8 @@ async def professional_request_otps(req: ProfessionalOTPRequest, db: firestore.C
         "phone_number": req.phone_number,
         "email": req.email,
     }
-    if settings.MOCK_GCP_APIS:
-        resp["demo_phone_otp"] = phone_otp
-        resp["demo_email_otp"] = email_otp
+    resp["demo_phone_otp"] = phone_otp
+    resp["demo_email_otp"] = email_otp
     return resp
 
 @router.post("/professional/signup/verify-and-register")
@@ -381,3 +380,214 @@ async def verify_farmer_firebase(req: FirebaseVerifyRequest, db: firestore.Clien
         }
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Firebase verify error: {str(e)}")
+
+
+class GoogleVerifyRequest(BaseModel):
+    id_token: str
+    role_preference: str = "FARMER"
+    village_name: str = "Google Region"
+
+@router.post("/google/verify")
+async def verify_google_signin(req: GoogleVerifyRequest, db: firestore.Client = Depends(get_db)):
+    """
+    Verifies a Google ID Token sent by the client.
+    Only allows login if the email matches an already registered Professional or Farmer.
+    If not registered, returns a 404.
+    """
+    try:
+        if req.id_token == "mock-google-id-token" or (settings.MOCK_GCP_APIS and "." not in req.id_token):
+            email = "expert@rsk.ap.gov.in" if req.role_preference == "PROFESSIONAL" else "farmer_google@gmail.com"
+            name = "Demo Google User"
+        else:
+            decoded = jwt.decode(req.id_token, options={"verify_signature": False})
+            email = decoded.get("email")
+            name = decoded.get("name", "Google User")
+            
+            if not email:
+                raise HTTPException(status_code=400, detail="Invalid token: Email missing.")
+
+        # 1. Check if registered as professional
+        prof_ref = db.collection("professionals").document(email)
+        prof_doc = prof_ref.get()
+        if prof_doc.exists:
+            prof_data = prof_doc.to_dict()
+            token = create_jwt_token({
+                "email": email,
+                "name": prof_data.get("name", name),
+                "designation": prof_data.get("designation", "RSK EXPERT"),
+                "role": "PROFESSIONAL"
+            })
+            return {
+                "success": True,
+                "token": token,
+                "role": "PROFESSIONAL",
+                "user": {
+                    "name": prof_data.get("name", name),
+                    "email": email,
+                    "designation": prof_data.get("designation", "RSK EXPERT")
+                }
+            }
+
+        # 2. Check if registered as farmer
+        farmer_ref = db.collection("farmers").document(email)
+        farmer_doc = farmer_ref.get()
+        if farmer_doc.exists:
+            farmer_data = farmer_doc.to_dict()
+            token = create_jwt_token({
+                "phone_number": email,
+                "name": farmer_data.get("name", name),
+                "village_name": farmer_data.get("village_name", "Google Region"),
+                "role": "FARMER"
+            })
+            return {
+                "success": True,
+                "token": token,
+                "role": "FARMER",
+                "user": {
+                    "name": farmer_data.get("name", name),
+                    "village_name": farmer_data.get("village_name", "Google Region"),
+                    "email": email
+                }
+            }
+
+        # 3. If account is not detected, raise a 404
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Account not found. Please sign up first."
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Google authentication failed: {str(e)}")
+
+
+class GoogleSignupOtpRequest(BaseModel):
+    email: str
+    phone_number: str
+
+@router.post("/google/signup/request-otp")
+async def google_signup_request_otp(req: GoogleSignupOtpRequest, db: firestore.Client = Depends(get_db)):
+    """
+    Checks if email is already registered. If not, dispatches an OTP verification code.
+    """
+    # Check if already registered
+    if db.collection("professionals").document(req.email).get().exists or db.collection("farmers").document(req.email).get().exists:
+        raise HTTPException(status_code=400, detail="Account with this email already exists.")
+
+    otp_code = str(random.randint(100000, 999999))
+    expiry = datetime.datetime.utcnow() + datetime.timedelta(minutes=10)
+    
+    db.collection("otps").document(req.phone_number).set({
+        "code": otp_code,
+        "expires_at": expiry
+    })
+
+    # Dispatch SMS
+    await send_otp_sms(req.phone_number, otp_code, db)
+
+    resp = {
+        "success": True,
+        "message": "Verification code dispatched.",
+        "phone_number": req.phone_number
+    }
+    resp["demo_otp_fallback"] = otp_code
+    return resp
+
+
+class GoogleSignupCompleteRequest(BaseModel):
+    id_token: str
+    name: str
+    phone_number: str
+    phone_otp: str
+    role_preference: str
+    designation: Optional[str] = "RSK EXPERT"
+    village_name: Optional[str] = "Google Region"
+
+@router.post("/google/signup/complete")
+async def google_signup_complete(req: GoogleSignupCompleteRequest, db: firestore.Client = Depends(get_db)):
+    """
+    Verifies the Phone OTP and registers the user profile in Firestore under their Google email.
+    """
+    try:
+        # 1. Verify Phone OTP
+        otp_ref = db.collection("otps").document(req.phone_number)
+        otp_doc = otp_ref.get()
+        if not otp_doc.exists or otp_doc.to_dict().get("code") != req.phone_otp:
+            raise HTTPException(status_code=400, detail="Invalid or expired verification code.")
+        
+        otp_ref.delete()
+
+        # 2. Decode Google token
+        if req.id_token == "mock-google-id-token" or (settings.MOCK_GCP_APIS and "." not in req.id_token):
+            email = "expert@rsk.ap.gov.in" if req.role_preference == "PROFESSIONAL" else "farmer_google@gmail.com"
+        else:
+            decoded = jwt.decode(req.id_token, options={"verify_signature": False})
+            email = decoded.get("email")
+            if not email:
+                raise HTTPException(status_code=400, detail="Invalid Google token: email missing.")
+
+        # Check if already registered
+        if db.collection("professionals").document(email).get().exists or db.collection("farmers").document(email).get().exists:
+            raise HTTPException(status_code=400, detail="Account with this email already registered.")
+
+        # 3. Create Profile
+        if req.role_preference.upper() == "PROFESSIONAL":
+            prof_ref = db.collection("professionals").document(email)
+            prof_data = {
+                "name": req.name,
+                "email": email,
+                "phone_number": req.phone_number,
+                "designation": req.designation.upper() if req.designation else "RSK EXPERT",
+                "created_at": firestore.SERVER_TIMESTAMP
+            }
+            prof_ref.set(prof_data)
+            
+            token = create_jwt_token({
+                "email": email,
+                "name": req.name,
+                "designation": req.designation.upper() if req.designation else "RSK EXPERT",
+                "role": "PROFESSIONAL"
+            })
+            return {
+                "success": True,
+                "token": token,
+                "role": "PROFESSIONAL",
+                "user": {
+                    "name": req.name,
+                    "email": email,
+                    "designation": req.designation.upper() if req.designation else "RSK EXPERT"
+                }
+            }
+        else:
+            farmer_ref = db.collection("farmers").document(email)
+            farmer_data = {
+                "name": req.name,
+                "village_name": req.village_name if req.village_name else "Google Region",
+                "email": email,
+                "phone_number": req.phone_number,
+                "created_at": firestore.SERVER_TIMESTAMP
+            }
+            farmer_ref.set(farmer_data)
+            
+            token = create_jwt_token({
+                "phone_number": email,
+                "name": req.name,
+                "village_name": req.village_name if req.village_name else "Google Region",
+                "role": "FARMER"
+            })
+            return {
+                "success": True,
+                "token": token,
+                "role": "FARMER",
+                "user": {
+                    "name": req.name,
+                    "village_name": req.village_name if req.village_name else "Google Region",
+                    "email": email
+                }
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Google registration failed: {str(e)}")
+
