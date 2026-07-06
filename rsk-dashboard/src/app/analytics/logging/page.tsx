@@ -76,37 +76,33 @@ export default function AnalyticsLoggingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col">
       <Navbar />
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 flex-grow relative z-10">
-        
-        {/* Glow Effects */}
-        <div className="absolute top-1/4 left-1/4 w-72 h-72 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-1/4 right-1/4 w-72 h-72 bg-violet-500/5 rounded-full blur-3xl pointer-events-none" />
 
         <div className="space-y-8 relative z-20">
           
           {/* Header Row */}
-          <div className="flex items-center gap-3 border-b border-slate-900 pb-4">
-            <div className="bg-emerald-500/10 p-3 rounded-2xl border border-emerald-500/20 text-emerald-400">
+          <div className="flex items-center gap-3 border-b border-slate-200 pb-4">
+            <div className="bg-white p-3 rounded-2xl border border-slate-200 text-slate-700 shadow-sm">
               <Database className="h-6 w-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-black text-slate-100">Farm Analytics Logging</h1>
-              <p className="text-xs text-slate-400">Publish regional harvest outputs and environmental indexes for intelligence mapping</p>
+              <h1 className="text-2xl font-black text-slate-900">Farm Analytics Logging</h1>
+              <p className="text-xs text-slate-555 font-medium">Publish regional harvest outputs and environmental indexes for intelligence mapping</p>
             </div>
           </div>
 
           {successMsg && (
-            <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-4 rounded-xl flex items-center gap-3 text-xs leading-relaxed animate-fade-in">
+            <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 p-4 rounded-xl flex items-center gap-3 text-xs leading-relaxed animate-fade-in">
               <CheckCircle className="h-5 w-5 shrink-0" />
               <span>{successMsg}</span>
             </div>
           )}
 
           {errorMsg && (
-            <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 p-4 rounded-xl flex items-center gap-3 text-xs leading-relaxed animate-fade-in">
+            <div className="bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-xl flex items-center gap-3 text-xs leading-relaxed animate-fade-in">
               <AlertCircle className="h-5 w-5 shrink-0" />
               <span>{errorMsg}</span>
             </div>
@@ -116,27 +112,27 @@ export default function AnalyticsLoggingPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             
             {/* Form Input fields */}
-            <form onSubmit={handleSubmit} className="lg:col-span-2 bg-slate-900/40 border border-slate-800 p-6 rounded-3xl backdrop-blur-md space-y-6">
+            <form onSubmit={handleSubmit} className="lg:col-span-2 bg-white border border-slate-200 p-6 rounded-3xl shadow-sm space-y-6">
               
               {/* Regional Fields */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Mandi / Area Name <span className="text-rose-400">*</span></label>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Mandi / Area Name <span className="text-rose-600 font-bold">*</span></label>
                   <input
                     type="text"
                     placeholder="e.g. Podalakur"
                     value={areaName}
                     onChange={(e) => setAreaName(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-855 focus:border-emerald-500 rounded-xl px-4 py-3 text-sm focus:outline-none text-slate-100"
+                    className="w-full bg-white border border-slate-300 focus:border-slate-500 rounded-xl px-4 py-3 text-sm focus:outline-none text-slate-800"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Crop Season <span className="text-rose-400">*</span></label>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Crop Season <span className="text-rose-600 font-bold">*</span></label>
                   <select
                     value={season}
                     onChange={(e) => setSeason(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-855 focus:border-emerald-500 rounded-xl px-3 py-3 text-sm focus:outline-none text-slate-100 cursor-pointer"
+                    className="w-full bg-white border border-slate-300 focus:border-slate-500 rounded-xl px-3 py-3 text-sm focus:outline-none text-slate-800 cursor-pointer"
                   >
                     {SEASONS.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
@@ -146,24 +142,24 @@ export default function AnalyticsLoggingPage() {
               {/* Crop & Area metrics */}
               <div className="grid grid-cols-3 gap-4">
                 <div className="col-span-1">
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Crop Cultivated</label>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Crop Cultivated</label>
                   <select
                     value={crop}
                     onChange={(e) => setCrop(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-855 focus:border-emerald-500 rounded-xl px-3 py-3 text-sm focus:outline-none text-slate-100 cursor-pointer"
+                    className="w-full bg-white border border-slate-300 focus:border-slate-500 rounded-xl px-3 py-3 text-sm focus:outline-none text-slate-800 cursor-pointer"
                   >
                     {CROPS.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Total Cultivated Area (Acres) <span className="text-rose-400">*</span></label>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Total Cultivated Area (Acres) <span className="text-rose-600 font-bold">*</span></label>
                   <input
                     type="number"
                     step="any"
                     placeholder="e.g. 120.5"
                     value={areaAcres}
                     onChange={(e) => setAreaAcres(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-855 focus:border-emerald-500 rounded-xl px-4 py-3 text-sm focus:outline-none text-slate-100"
+                    className="w-full bg-white border border-slate-300 focus:border-slate-500 rounded-xl px-4 py-3 text-sm focus:outline-none text-slate-800"
                     required
                   />
                 </div>
@@ -172,26 +168,26 @@ export default function AnalyticsLoggingPage() {
               {/* Yield and Price */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Yield Obtained (Tonnes) <span className="text-rose-400">*</span></label>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Yield Obtained (Tonnes) <span className="text-rose-600 font-bold">*</span></label>
                   <input
                     type="number"
                     step="any"
                     placeholder="e.g. 240.2"
                     value={yieldTonnes}
                     onChange={(e) => setYieldTonnes(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-855 focus:border-emerald-500 rounded-xl px-4 py-3 text-sm focus:outline-none text-slate-100"
+                    className="w-full bg-white border border-slate-300 focus:border-slate-500 rounded-xl px-4 py-3 text-sm focus:outline-none text-slate-800"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Avg Market Price (₹ / Tonne) <span className="text-rose-400">*</span></label>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Avg Market Price (₹ / Tonne) <span className="text-rose-600 font-bold">*</span></label>
                   <input
                     type="number"
                     step="any"
                     placeholder="e.g. 18500"
                     value={marketPriceInr}
                     onChange={(e) => setMarketPriceInr(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-855 focus:border-emerald-500 rounded-xl px-4 py-3 text-sm focus:outline-none text-slate-100"
+                    className="w-full bg-white border border-slate-300 focus:border-slate-500 rounded-xl px-4 py-3 text-sm focus:outline-none text-slate-800"
                     required
                   />
                 </div>
@@ -200,8 +196,8 @@ export default function AnalyticsLoggingPage() {
               {/* Soil index slider */}
               <div>
                 <div className="flex justify-between items-baseline mb-2">
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Average Soil Quality Score</label>
-                  <span className="text-sm font-mono font-bold text-emerald-400">{soilQualityScore} / 100</span>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Average Soil Quality Score</label>
+                  <span className="text-sm font-mono font-bold text-emerald-700">{soilQualityScore} / 100</span>
                 </div>
                 <input
                   type="range"
@@ -209,43 +205,43 @@ export default function AnalyticsLoggingPage() {
                   max="100"
                   value={soilQualityScore}
                   onChange={(e) => setSoilQualityScore(parseInt(e.target.value))}
-                  className="w-full h-1 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                  className="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-500"
                 />
               </div>
 
               {/* Environmental Metrics */}
-              <div className="grid grid-cols-3 gap-4 border-t border-slate-900 pt-6">
+              <div className="grid grid-cols-3 gap-4 border-t border-slate-200 pt-6">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Temp (°C)</label>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Temp (°C)</label>
                   <input
                     type="number"
                     step="any"
                     placeholder="28.5"
                     value={avgTemp}
                     onChange={(e) => setAvgTemp(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-855 focus:border-emerald-500 rounded-xl px-4 py-3 text-sm focus:outline-none text-slate-100"
+                    className="w-full bg-white border border-slate-300 focus:border-slate-500 rounded-xl px-4 py-3 text-sm focus:outline-none text-slate-800"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Rainfall (mm)</label>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Rainfall (mm)</label>
                   <input
                     type="number"
                     step="any"
                     placeholder="45.0"
                     value={rainfall}
                     onChange={(e) => setRainfall(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-855 focus:border-emerald-500 rounded-xl px-4 py-3 text-sm focus:outline-none text-slate-100"
+                    className="w-full bg-white border border-slate-300 focus:border-slate-500 rounded-xl px-4 py-3 text-sm focus:outline-none text-slate-800"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Humidity (%)</label>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Humidity (%)</label>
                   <input
                     type="number"
                     step="any"
                     placeholder="65"
                     value={humidity}
                     onChange={(e) => setHumidity(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-855 focus:border-emerald-500 rounded-xl px-4 py-3 text-sm focus:outline-none text-slate-100"
+                    className="w-full bg-white border border-slate-300 focus:border-slate-550 rounded-xl px-4 py-3 text-sm focus:outline-none text-slate-800"
                   />
                 </div>
               </div>
@@ -253,7 +249,7 @@ export default function AnalyticsLoggingPage() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-3 rounded-xl transition duration-150 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl transition duration-150 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-sm"
               >
                 {isSubmitting ? (
                   <><RefreshCw className="h-4 w-4 animate-spin" /> Publishing log...</>
@@ -268,36 +264,36 @@ export default function AnalyticsLoggingPage() {
             <div className="lg:col-span-1 space-y-6">
               
               {/* Valuation details */}
-              <div className="bg-slate-900/40 border border-slate-800 p-6 rounded-3xl backdrop-blur-md space-y-4">
+              <div className="bg-white border border-slate-200 p-6 rounded-3xl shadow-sm space-y-4">
                 <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Live Valuation Estimate</span>
                 
                 <div className="space-y-4">
                   <div>
-                    <span className="text-[10px] text-slate-400 block uppercase font-semibold">Total Yield Volume</span>
+                    <span className="text-[10px] text-slate-400 block uppercase font-bold">Total Yield Volume</span>
                     <div className="flex items-baseline gap-1 mt-1">
-                      <span className="text-3xl font-extrabold text-slate-100">{yieldTonnes || '0'}</span>
-                      <span className="text-xs text-slate-400">Tons</span>
+                      <span className="text-3xl font-extrabold text-slate-900">{yieldTonnes || '0'}</span>
+                      <span className="text-xs text-slate-500">Tons</span>
                     </div>
                   </div>
 
                   <div>
-                    <span className="text-[10px] text-slate-400 block uppercase font-semibold">Estimated Gross Revenue</span>
-                    <div className="text-2xl font-black text-emerald-400 mt-1">
+                    <span className="text-[10px] text-slate-400 block uppercase font-bold">Estimated Gross Revenue</span>
+                    <div className="text-2xl font-black text-emerald-700 mt-1">
                       ₹{totalValuation.toLocaleString()}
                     </div>
                   </div>
 
-                  <div className="bg-slate-950 p-4 rounded-xl border border-slate-850 text-xs text-slate-400 leading-relaxed">
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs text-slate-600 leading-relaxed font-medium">
                     Estimates are calculated using direct gross yield weight multiplied by current regional market values.
                   </div>
                 </div>
               </div>
 
               {/* Instructions banner */}
-              <div className="bg-slate-900/40 border border-slate-800 p-6 rounded-3xl backdrop-blur-md flex gap-3 text-xs leading-relaxed text-slate-400">
-                <ShieldAlert className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+              <div className="bg-white border border-slate-200 p-6 rounded-3xl shadow-sm flex gap-3 text-xs leading-relaxed text-slate-650">
+                <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="font-bold text-slate-300 mb-1">DLT Compliance Note</h4>
+                  <h4 className="font-bold text-slate-800 mb-1">DLT Compliance Note</h4>
                   Ensure data values match MANDI weigh-in records before publishing. Incorrect submissions must be manually reconciled by the RSK administrator.
                 </div>
               </div>
@@ -305,7 +301,6 @@ export default function AnalyticsLoggingPage() {
             </div>
 
           </div>
-
         </div>
       </main>
     </div>
