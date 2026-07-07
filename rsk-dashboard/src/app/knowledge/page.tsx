@@ -46,6 +46,7 @@ export default function KnowledgePage() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searchMeta, setSearchMeta] = useState<SearchMeta | null>(null);
   const [expandedCards, setExpandedCards] = useState<Record<number, 'en' | 'local'>>({});
+  const [englishTranslation, setEnglishTranslation] = useState('');
 
   // Language selector
   const [selectedLang, setSelectedLang] = useState(LANGUAGES[0]);
@@ -80,10 +81,13 @@ export default function KnowledgePage() {
     setSearchError(null);
     setResults([]);
     setSearchMeta(null);
+    setEnglishTranslation('');
     setExpandedCards({});
 
     const langPrefix = lang.code.split('-')[0];
-    const isEnglish = langPrefix === 'en';
+    const containsNonEnglish = /[^\x00-\x7F]/.test(query);
+    const isEnglish = langPrefix === 'en' && !containsNonEnglish;
+    const searchLanguageCode = isEnglish ? 'en-IN' : (containsNonEnglish && langPrefix === 'en' ? 'auto' : lang.code);
 
     try {
       if (isEnglish) {
@@ -106,7 +110,7 @@ export default function KnowledgePage() {
         // Bilingual preprocessed search
         const fd = new FormData();
         fd.append('text', query);
-        fd.append('language_code', lang.code);
+        fd.append('language_code', searchLanguageCode);
         fd.append('top_k', '3');
 
         const res = await fetch(`${API_BASE_URL}/api/v1/knowledge/query-preprocessed`, {
@@ -115,6 +119,7 @@ export default function KnowledgePage() {
         });
         if (!res.ok) throw new Error(`Preprocessed RAG search failed: ${res.status}`);
         const data = await res.json();
+        setEnglishTranslation(data.english_query || '');
 
         // data.relevant_passages are the translated (local-language) results
         // We also fetch the English originals in parallel
@@ -323,6 +328,14 @@ export default function KnowledgePage() {
               Listening in {selectedLang.label}… speak your crop query
             </p>
           )}
+
+          {/* Debug English translation box */}
+          {englishTranslation && (
+            <div className="bg-slate-100 border border-slate-200 rounded-xl px-4 py-2 text-xs flex items-center gap-2 text-slate-600 animate-fade-in font-medium">
+              <span className="font-bold text-slate-500 uppercase tracking-wider text-[9px] bg-slate-200 px-1.5 py-0.5 rounded shrink-0">Debug EN Translation</span>
+              <span className="italic">"{englishTranslation}"</span>
+            </div>
+          )}
         </div>
 
         {/* Search meta banner */}
@@ -333,8 +346,8 @@ export default function KnowledgePage() {
               Multilingual Search Active
             </div>
             <div className="text-indigo-600 space-y-0.5">
-              <p><span className="font-semibold">Original ({searchMeta.langLabel}):</span> {searchMeta.originalQuery}</p>
-              <p><span className="font-semibold text-emerald-700">English (used for RAG):</span> {searchMeta.englishQuery}</p>
+              <p><span className="font-semibold text-slate-700">Original ({searchMeta.langLabel}):</span> {searchMeta.originalQuery}</p>
+              <p><span className="font-semibold text-emerald-700">English (Passed to Vector DB):</span> {searchMeta.englishQuery}</p>
             </div>
           </div>
         )}
@@ -351,63 +364,53 @@ export default function KnowledgePage() {
           {results.length > 0 ? (
             results.map((doc, idx) => {
               const isBilingual = !!doc.text_en && doc.text_en !== doc.text;
-              const showingLocal = expandedCards[idx] === 'local';
 
               return (
                 <div key={idx} className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden animate-fade-in">
                   {/* Card header */}
                   <div className="flex justify-between items-center px-6 pt-5 pb-3 border-b border-slate-100">
-                    <span className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">
-                      <FileText className="h-4 w-4" />
-                      {isBilingual && !showingLocal ? doc.title_en : doc.title}
+                    <span className="text-xs font-bold text-emerald-700 flex flex-wrap gap-x-2 gap-y-1 items-center">
+                      <FileText className="h-4 w-4 text-emerald-600 shrink-0" />
+                      {isBilingual ? (
+                        <span>
+                          {doc.title_en} <span className="text-slate-400 font-normal mx-1">|</span> <span className="text-indigo-650 font-semibold">{doc.title}</span>
+                        </span>
+                      ) : (
+                        doc.title
+                      )}
                     </span>
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] bg-slate-50 text-slate-600 px-2 py-0.5 rounded font-bold border border-slate-200">
+                      <span className="text-[10px] bg-slate-50 text-slate-650 px-2 py-0.5 rounded font-bold border border-slate-200">
                         {Math.round(doc.similarity * 100)}% match
                       </span>
-                      {isBilingual && (
-                        <button
-                          type="button"
-                          onClick={() => toggleCard(idx)}
-                          className={`flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg border transition cursor-pointer ${
-                            showingLocal
-                              ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          }`}
-                        >
-                          <Globe className="h-3 w-3" />
-                          {showingLocal ? doc.lang_label : 'English'}
-                        </button>
-                      )}
                     </div>
                   </div>
 
                   {/* Card body */}
-                  <div className="px-6 py-4 space-y-3">
-                    <p className="text-sm text-slate-700 leading-relaxed font-medium">
-                      {isBilingual && !showingLocal ? doc.text_en : doc.text}
-                    </p>
-
-                    {/* Show both versions side-by-side if bilingual */}
-                    {isBilingual && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
-                        <div className="space-y-1">
-                          <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-1">
+                  <div className="px-6 py-4 space-y-4">
+                    {isBilingual ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded w-max">
                             <Globe className="h-3 w-3" /> English
                           </span>
-                          <p className="text-xs text-slate-600 leading-relaxed bg-emerald-50/60 rounded-lg p-2.5 border border-emerald-100">
+                          <p className="text-sm text-slate-700 leading-relaxed font-medium bg-slate-50/60 rounded-xl p-3 border border-slate-150">
                             {doc.text_en}
                           </p>
                         </div>
-                        <div className="space-y-1">
-                          <span className="text-[9px] font-bold text-indigo-600 uppercase tracking-wider flex items-center gap-1">
+                        <div className="space-y-1.5">
+                          <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider flex items-center gap-1 bg-indigo-50 px-2 py-0.5 rounded w-max">
                             <Languages className="h-3 w-3" /> {doc.lang_label}
                           </span>
-                          <p className="text-xs text-slate-600 leading-relaxed bg-indigo-50/60 rounded-lg p-2.5 border border-indigo-100">
+                          <p className="text-sm text-slate-750 leading-relaxed font-semibold bg-indigo-50/20 rounded-xl p-3 border border-indigo-100/60">
                             {doc.text}
                           </p>
                         </div>
                       </div>
+                    ) : (
+                      <p className="text-sm text-slate-700 leading-relaxed font-medium">
+                        {doc.text}
+                      </p>
                     )}
                   </div>
 

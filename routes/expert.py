@@ -144,6 +144,19 @@ async def get_single_ticket(ticket_id: str, db: firestore.Client = Depends(get_d
             serialized["voice_transcript"] = serialized["problem_transcript"]
         if "actionable_steps" in serialized and "remediation_steps" not in serialized:
             serialized["remediation_steps"] = serialized["actionable_steps"]
+            
+        # Translate to English on-the-fly for old tickets if missing
+        if "english_transcript" not in serialized or not serialized["english_transcript"]:
+            transcript = serialized.get("problem_transcript") or serialized.get("voice_transcript")
+            if transcript:
+                from services.translation_service import TranslationService
+                ts = TranslationService()
+                lang = ts.detect_language(transcript)
+                if lang != "en":
+                    serialized["english_transcript"] = ts.translate_to_english(transcript, source_language=lang)
+                else:
+                    serialized["english_transcript"] = transcript
+                    
         return serialized
     except HTTPException:
         raise
@@ -179,6 +192,18 @@ async def update_ticket_resolution(
             update_data["status"] = payload.status
         if payload.expert_remediation is not None:
             update_data["expert_remediation"] = payload.expert_remediation
+            
+            # Translate expert advisory note to local language if not English
+            ticket_doc = doc.to_dict() or {}
+            lang = ticket_doc.get("language_code") or ticket_doc.get("detected_language") or "en"
+            lang_prefix = lang.split("-")[0]
+            if lang_prefix != "en":
+                from services.translation_service import TranslationService
+                translator = TranslationService()
+                localized_remediation = translator.translate_from_english(payload.expert_remediation, target_language=lang_prefix)
+                update_data["localized_expert_remediation"] = localized_remediation
+            else:
+                update_data["localized_expert_remediation"] = payload.expert_remediation
         if payload.requires_expert is not None:
             update_data["requires_expert"] = payload.requires_expert
         if payload.assigned_to is not None:

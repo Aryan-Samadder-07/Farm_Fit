@@ -51,20 +51,32 @@ class DiagnosisService:
                 f"Perform a professional agronomic diagnosis and output the classification schema."
             )
 
-            # Invoke Gemini 2.5 Flash model
-            response = self.client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=contents,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=DiagnosisResult,
-                    temperature=0.1,
-                )
-            )
-
-            if response.parsed:
-                return response.parsed
-            
+            # Invoke Gemini models with fallback
+            models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash"]
+            last_err = None
+            for model in models_to_try:
+                try:
+                    response = self.client.models.generate_content(
+                        model=model,
+                        contents=contents,
+                        config=types.GenerateContentConfig(
+                            response_mime_type="application/json",
+                            response_schema=DiagnosisResult,
+                            temperature=0.1,
+                        )
+                    )
+                    if response.parsed:
+                        return response.parsed
+                except Exception as e:
+                    err_str = str(e)
+                    if "429" in err_str or "quota" in err_str.lower() or "limit" in err_str.lower():
+                        print(f"[DiagnosisService] Model {model} quota exhausted. Trying next model...")
+                        last_err = e
+                        continue
+                    else:
+                        raise e
+            if last_err:
+                raise last_err
             raise ValueError("Failed to parse Gemini response into expected DiagnosisResult model.")
 
         except Exception as e:

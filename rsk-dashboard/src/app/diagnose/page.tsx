@@ -1,11 +1,23 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../context/AuthContext';
-import { Sparkles, Cpu, Image as ImageIcon, Send, AlertCircle, RefreshCw, CheckCircle, MapPin, LocateFixed, Trash2 } from 'lucide-react';
+import { Sparkles, Cpu, Image as ImageIcon, Send, AlertCircle, RefreshCw, CheckCircle, MapPin, LocateFixed, Trash2, Mic, MicOff, ChevronDown, Globe, Languages } from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+const LANGUAGES = [
+  { code: 'en-IN', label: 'English', flag: '🇬🇧' },
+  { code: 'hi-IN', label: 'हिंदी (Hindi)', flag: '🇮🇳' },
+  { code: 'te-IN', label: 'తెలుగు (Telugu)', flag: '🇮🇳' },
+  { code: 'ta-IN', label: 'தமிழ் (Tamil)', flag: '🇮🇳' },
+  { code: 'kn-IN', label: 'ಕನ್ನಡ (Kannada)', flag: '🇮🇳' },
+  { code: 'bn-IN', label: 'বাংলা (Bengali)', flag: '🇮🇳' },
+  { code: 'mr-IN', label: 'मराठी (Marathi)', flag: '🇮🇳' },
+  { code: 'gu-IN', label: 'ગુજરાતી (Gujarati)', flag: '🇮🇳' },
+  { code: 'pa-IN', label: 'ਪੰਜਾਬੀ (Punjabi)', flag: '🇮🇳' },
+];
 
 export default function DiagnosePage() {
   const { user } = useAuth();
@@ -13,6 +25,62 @@ export default function DiagnosePage() {
   const [farmerName, setFarmerName] = useState('');
   const [cropType, setCropType] = useState('');
   const [problemTranscript, setProblemTranscript] = useState('');
+  
+  // Voice Recording states
+  const [selectedLang, setSelectedLang] = useState(LANGUAGES[0]);
+  const [isLangOpen, setIsLangOpen] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [englishTranslation, setEnglishTranslation] = useState('');
+  const recognitionRef = useRef<any>(null);
+  const langDropRef = useRef<HTMLDivElement>(null);
+
+  // Close lang dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (langDropRef.current && !langDropRef.current.contains(e.target as Node)) {
+        setIsLangOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const startRecording = () => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert('Voice recognition not supported in this browser. Use Chrome.');
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = selectedLang.code;
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => setIsRecording(true);
+
+    recognition.onresult = async (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setIsRecording(false);
+      setProblemTranscript(transcript);
+    };
+
+    recognition.onerror = (event: any) => {
+      setIsRecording(false);
+      setDiagError(`Voice error: ${event.error}`);
+    };
+
+    recognition.onend = () => setIsRecording(false);
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
+
+  const stopRecording = () => {
+    recognitionRef.current?.stop();
+    setIsRecording(false);
+  };
   
   // Multiple image upload state
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
@@ -110,6 +178,7 @@ export default function DiagnosePage() {
     setIsDiagnosing(true);
     setDiagError(null);
     setDiagnosisResult(null);
+    setEnglishTranslation('');
 
     const formData = new FormData();
     formData.append("farmer_name", farmerName || "Anonymous Farmer");
@@ -139,7 +208,13 @@ export default function DiagnosePage() {
       }
 
       const data = await res.json();
-      setDiagnosisResult({ ticket_id: data.ticket_id, ...data.diagnosis });
+      setDiagnosisResult({ 
+        ticket_id: data.ticket_id, 
+        ...data.diagnosis,
+        localized_diagnosis: data.localized_diagnosis,
+        detected_language: data.detected_language 
+      });
+      setEnglishTranslation(data.english_transcript || '');
     } catch (err: any) {
       console.error(err);
       setDiagError(err.message || "Failed to contact diagnostic engine.");
@@ -188,15 +263,77 @@ export default function DiagnosePage() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700">Voice Transcript Description</label>
-                <textarea
-                  rows={3}
-                  placeholder="E.g. Yellow leaves on lower branches..."
-                  value={problemTranscript}
-                  onChange={(e) => setProblemTranscript(e.target.value)}
-                  className="mt-1.5 w-full bg-white border border-slate-300 focus:border-slate-500 rounded-lg px-4 py-2.5 text-sm text-slate-800 focus:outline-none transition duration-150 resize-none"
-                  required
-                />
+                <div className="flex justify-between items-center">
+                  <label className="block text-sm font-semibold text-slate-700">Voice Transcript Description</label>
+                  
+                  {/* Language Selector */}
+                  <div className="relative" ref={langDropRef}>
+                    <button
+                      type="button"
+                      onClick={() => setIsLangOpen(v => !v)}
+                      className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 hover:border-slate-350 rounded-lg px-2 py-1 text-[11px] font-bold text-slate-650 transition cursor-pointer"
+                    >
+                      <span>{selectedLang.flag}</span>
+                      <span>{selectedLang.label}</span>
+                      <ChevronDown className="h-3 w-3 text-slate-400" />
+                    </button>
+                    {isLangOpen && (
+                      <div className="absolute right-0 z-30 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden w-40 max-h-48 overflow-y-auto">
+                        {LANGUAGES.map(lang => (
+                          <button
+                            key={lang.code}
+                            type="button"
+                            onClick={() => { setSelectedLang(lang); setIsLangOpen(false); }}
+                            className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-left hover:bg-slate-50 transition cursor-pointer ${
+                              lang.code === selectedLang.code ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-slate-650'
+                            }`}
+                          >
+                            <span>{lang.flag}</span>
+                            <span>{lang.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="relative mt-1.5">
+                  <textarea
+                    rows={3}
+                    placeholder={selectedLang.code.startsWith('en') 
+                      ? "E.g. Yellow spots on leaves expand under high moisture..." 
+                      : `Speak or type in ${selectedLang.label}...`}
+                    value={problemTranscript}
+                    onChange={(e) => setProblemTranscript(e.target.value)}
+                    className="w-full bg-white border border-slate-300 focus:border-slate-500 rounded-lg pl-4 pr-12 py-2.5 text-sm text-slate-800 focus:outline-none transition duration-150 resize-none"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={isRecording ? stopRecording : startRecording}
+                    title={isRecording ? 'Stop' : 'Record Voice'}
+                    className={`absolute right-3.5 top-3 p-2 rounded-lg border transition cursor-pointer ${
+                      isRecording 
+                        ? 'bg-rose-500 text-white animate-pulse border-rose-400' 
+                        : 'bg-slate-50 text-slate-500 hover:text-slate-800 border-slate-200'
+                    }`}
+                  >
+                    {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                  </button>
+                </div>
+
+                {isRecording && (
+                  <p className="text-[10px] text-rose-600 font-bold animate-pulse mt-1 pl-0.5">
+                    Recording in {selectedLang.label}... speak now.
+                  </p>
+                )}
+
+                {englishTranslation && (
+                  <div className="mt-2 bg-slate-100 border border-slate-200 rounded-lg px-3 py-1.5 text-xs flex items-center gap-2 text-slate-600 animate-fade-in font-medium">
+                    <span className="font-bold text-slate-500 uppercase tracking-wider text-[8px] bg-slate-200 px-1.5 py-0.5 rounded shrink-0">Debug EN Translation</span>
+                    <span className="italic">"{englishTranslation}"</span>
+                  </div>
+                )}
               </div>
 
               {/* Multiple Images Selector */}
@@ -318,7 +455,18 @@ export default function DiagnosePage() {
                 <div className="space-y-4">
                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Classification</span>
-                    <span className="text-lg font-extrabold text-slate-900 mt-1 block">{diagnosisResult.disease_name}</span>
+                    {diagnosisResult.localized_diagnosis ? (
+                      <div className="space-y-1.5 mt-1">
+                        <span className="text-base font-extrabold text-slate-900 block">
+                          <span className="text-emerald-700">English:</span> {diagnosisResult.disease_name}
+                        </span>
+                        <span className="text-sm font-bold text-indigo-700 block">
+                          <span className="text-indigo-650">{LANGUAGES.find(l => l.code.startsWith(diagnosisResult.detected_language))?.label || diagnosisResult.detected_language}:</span> {diagnosisResult.localized_diagnosis.disease_name}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-lg font-extrabold text-slate-900 mt-1 block">{diagnosisResult.disease_name}</span>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -340,20 +488,58 @@ export default function DiagnosePage() {
                     </div>
                   </div>
 
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Remediation Steps</span>
-                    <ul className="space-y-2 pt-1">
-                      {(Array.isArray(diagnosisResult.actionable_steps)
-                        ? diagnosisResult.actionable_steps
-                        : String(diagnosisResult.actionable_steps).split('. ').filter(Boolean)
-                      ).map((step: string, idx: number) => (
-                        <li key={idx} className="flex gap-2 text-sm text-slate-650 leading-relaxed">
-                          <span className="text-emerald-500 font-bold">•</span>
-                          <p>{step}</p>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                  {diagnosisResult.localized_diagnosis ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* English Steps */}
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+                        <span className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider block bg-emerald-50 px-2 py-0.5 rounded w-max">Remediation (English)</span>
+                        <ul className="space-y-2 pt-1">
+                          {(Array.isArray(diagnosisResult.actionable_steps)
+                            ? diagnosisResult.actionable_steps
+                            : String(diagnosisResult.actionable_steps).split('. ').filter(Boolean)
+                          ).map((step: string, idx: number) => (
+                            <li key={idx} className="flex gap-2 text-xs text-slate-600 leading-relaxed">
+                              <span className="text-emerald-500 font-bold shrink-0">•</span>
+                              <p>{step}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {/* Local Steps */}
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+                        <span className="text-[10px] text-indigo-700 font-bold uppercase tracking-wider block bg-indigo-50 px-2 py-0.5 rounded w-max">
+                          Remediation ({LANGUAGES.find(l => l.code.startsWith(diagnosisResult.detected_language))?.label || diagnosisResult.detected_language})
+                        </span>
+                        <ul className="space-y-2 pt-1">
+                          {(Array.isArray(diagnosisResult.localized_diagnosis.actionable_steps)
+                            ? diagnosisResult.localized_diagnosis.actionable_steps
+                            : String(diagnosisResult.localized_diagnosis.actionable_steps).split('. ').filter(Boolean)
+                          ).map((step: string, idx: number) => (
+                            <li key={idx} className="flex gap-2 text-xs text-slate-650 leading-relaxed font-semibold">
+                              <span className="text-indigo-500 font-bold shrink-0">•</span>
+                              <p>{step}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Remediation Steps</span>
+                      <ul className="space-y-2 pt-1">
+                        {(Array.isArray(diagnosisResult.actionable_steps)
+                          ? diagnosisResult.actionable_steps
+                          : String(diagnosisResult.actionable_steps).split('. ').filter(Boolean)
+                        ).map((step: string, idx: number) => (
+                          <li key={idx} className="flex gap-2 text-sm text-slate-650 leading-relaxed">
+                            <span className="text-emerald-500 font-bold">•</span>
+                            <p>{step}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (

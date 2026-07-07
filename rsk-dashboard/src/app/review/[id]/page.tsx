@@ -31,11 +31,13 @@ interface Ticket {
   phone_number?: string;
   village_name?: string;
   crop_type?: string;
+  english_crop_type?: string;
   disease_name?: string;
   confidence?: number;
   severity_level?: 'LOW' | 'MEDIUM' | 'HIGH';
   voice_transcript?: string;
   problem_transcript?: string;
+  english_transcript?: string;
   status?: string;
   created_at?: string;
   remediation_steps?: string[];
@@ -476,8 +478,17 @@ export default function ReviewPage({ params }: PageProps) {
             {/* Farmer Voice Transcript */}
             <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-3">
               <h3 className="text-xs font-bold text-slate-450 uppercase tracking-widest">Voice Transcript / Report</h3>
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 italic text-slate-700 text-sm leading-relaxed">
-                "{getTranscript(ticket)}"
+              <div className="space-y-2">
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-slate-700 text-sm leading-relaxed">
+                  <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider block bg-indigo-50 px-2 py-0.5 rounded w-max mb-1.5">Original Transcript</span>
+                  "{getTranscript(ticket)}"
+                </div>
+                {ticket.english_transcript && ticket.english_transcript !== getTranscript(ticket) && (
+                  <div className="bg-emerald-50/40 p-4 rounded-xl border border-emerald-100/60 text-slate-700 text-sm leading-relaxed">
+                    <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block bg-emerald-50 px-2 py-0.5 rounded w-max mb-1.5">English Translation</span>
+                    "{ticket.english_transcript}"
+                  </div>
+                )}
               </div>
             </div>
 
