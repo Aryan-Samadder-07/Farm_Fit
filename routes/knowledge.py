@@ -21,6 +21,7 @@ class RAGQueryResponse(BaseModel):
     query: str = Field(..., description="Echoed input search query")
     relevant_passages: List[RAGSnippet] = Field(..., description="Sorted list of retrieved snippets")
 
+
 @router.post("/query", response_model=RAGQueryResponse)
 async def query_agriculture_knowledge(payload: RAGQueryRequest):
     try:
@@ -52,11 +53,11 @@ async def query_agriculture_knowledge_preprocessed(
     """
     speech_service = SpeechService()
     translation_service = TranslationService()
-    
+
     try:
         raw_query = ""
         effective_lang = language_code
-        
+
         if voice:
             audio_content = await voice.read()
             if audio_content:
@@ -74,48 +75,134 @@ async def query_agriculture_knowledge_preprocessed(
                 effective_lang = f"{detected_prefix}-IN"
         else:
             raise HTTPException(status_code=400, detail="Either voice or text query must be provided.")
-            
+
         lang_prefix = effective_lang.split("-")[0]
-        
+
         # Translate query to English for RAG querying
         english_query = raw_query
         if lang_prefix != "en":
             english_query = translation_service.translate_to_english(raw_query, source_language=lang_prefix)
-            
+
         # Send English query to RAG Search API
         knowledge_srv = KnowledgeService()
         matches = await knowledge_srv.query_knowledge(english_query, top_k)
-        
+
         # Translate the resulting snippets back to farmer's language
         translated_matches = []
         for match in matches:
             text_to_translate = match["text"]
             title_to_translate = match["title"]
-            
+
             localized_text = text_to_translate
             localized_title = title_to_translate
-            
+
             if lang_prefix != "en":
                 localized_text = translation_service.translate_from_english(text_to_translate, target_language=lang_prefix)
                 localized_title = translation_service.translate_from_english(title_to_translate, target_language=lang_prefix)
-                
+
             translated_matches.append({
                 "doc_id": match["doc_id"],
                 "title": localized_title,
                 "text": localized_text,
                 "similarity": match["similarity"]
             })
-            
+
         return {
             "original_query": raw_query,
             "english_query": english_query,
             "language_detected": effective_lang,
             "relevant_passages": translated_matches
         }
-        
+
     except Exception as e:
         print(f"Error in query_agriculture_knowledge_preprocessed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Preprocessed RAG query failed: {str(e)}"
+        )
+
+
+# ── Voice-to-Text + Translation endpoint ─────────────────────────────────────
+
+class VoiceTextRequest(BaseModel):
+    text: str = Field(..., description="Text in any language (local or English)")
+    language_code: str = Field("auto", description="BCP-47 hint e.g. 'hi-IN'. Use 'auto' for auto-detection.")
+
+
+@router.post("/voice-to-text")
+async def voice_to_text_translate(payload: VoiceTextRequest):
+    """
+    Accepts text in any language, auto-detects or uses the provided language hint,
+    translates to English, and returns both versions.
+    Used by the RSK Dashboard voice input on the Ingestion (Review) and RAG Search pages.
+    """
+    translation_service = TranslationService()
+
+    raw_text = payload.text.strip()
+    if not raw_text:
+        raise HTTPException(status_code=400, detail="text field must not be empty.")
+
+    try:
+        lang_code = payload.language_code
+        if lang_code == "auto":
+            detected = translation_service.detect_language(raw_text)
+            lang_code = f"{detected}-IN"
+        lang_prefix = lang_code.split("-")[0]
+
+        # Translate to English (skip if already English)
+        english_text = raw_text
+        if lang_prefix != "en":
+            english_text = translation_service.translate_to_english(raw_text, source_language=lang_prefix)
+
+        return {
+            "original_text":  raw_text,
+            "english_text":   english_text,
+            "language_detected": lang_code,
+            "is_english": lang_prefix == "en",
+        }
+    except Exception as e:
+        print(f"Error in voice_to_text_translate: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Voice-to-text translation failed: {str(e)}"
+        )
+
+
+# ── Translate English text to a local language ────────────────────────────────
+
+class TranslateToLocalRequest(BaseModel):
+    text: str = Field(..., description="English text to translate")
+    target_language_code: str = Field(..., description="BCP-47 target language e.g. 'hi-IN'")
+
+
+@router.post("/translate-to-local")
+async def translate_to_local(payload: TranslateToLocalRequest):
+    """
+    Translates English text into the target local language.
+    Used by the dashboard to translate Gemini AI responses back to the expert's selected language.
+    """
+    translation_service = TranslationService()
+
+    text = payload.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="text must not be empty.")
+
+    lang_prefix = payload.target_language_code.split("-")[0]
+
+    try:
+        localized = text
+        if lang_prefix != "en":
+            localized = translation_service.translate_from_english(text, target_language=lang_prefix)
+
+        return {
+            "original_text": text,
+            "localized_text": localized,
+            "target_language": payload.target_language_code,
+            "is_english": lang_prefix == "en",
+        }
+    except Exception as e:
+        print(f"Error in translate_to_local: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Translation failed: {str(e)}"
         )

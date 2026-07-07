@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 from services.outbreak_service import OutbreakService
+from services.email_service import EmailService
 from db import get_db
 
 router = APIRouter(prefix="/api/v1/outbreak", tags=["Outbreak Detection Engine"])
@@ -99,6 +100,20 @@ async def register_outbreak_manually(req: OutbreakRegisterRequest):
             latitude=req.latitude,
             longitude=req.longitude,
             radius_km=5.0
+        )
+
+        # Send Gmail SMTP alert email to RSK admin
+        email_service = EmailService()
+        email_service.send_alert_notification(
+            alert_type="EXPERT_OUTBREAK_REGISTERED",
+            title=f"Expert-Confirmed Outbreak: {req.disease_name}",
+            message=(
+                f"{req.reported_by} confirmed {req.disease_name} on {req.crop_type} in "
+                f"{req.village}, {req.district}. {req.affected_farmer_count} farmers affected."
+                + (f" Notes: {req.notes}" if req.notes else "")
+            ),
+            severity="CRITICAL",
+            location=f"{req.village}, {req.district}",
         )
 
         return {

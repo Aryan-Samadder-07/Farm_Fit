@@ -2,8 +2,56 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 import httpx
 from services.agronomy_service import AgronomyService
+from config import settings
 
 router = APIRouter(prefix="/api/v1/agronomy", tags=["Agronomy recommendation"])
+
+
+# ── Freeform Gemini query endpoint (used by dashboard voice input) ─────────────
+
+class AgronomyQueryRequest(BaseModel):
+    query: str = Field(..., description="Freeform agricultural question in English")
+
+
+@router.post("/query")
+async def agronomy_gemini_query(payload: AgronomyQueryRequest):
+    """
+    Sends a freeform agricultural question to Gemini 2.5 Flash for analysis.
+    Returns a structured advisory response. Used by the RSK Dashboard voice input.
+    """
+    question = payload.query.strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="query must not be empty.")
+
+    # System prompt for agricultural expert persona
+    system_prompt = (
+        "You are an expert agronomist and crop disease specialist for the Indian agricultural context. "
+        "Provide concise, actionable advice in 3-5 sentences. Focus on: "
+        "1) Immediate remediation steps, 2) Recommended pesticide/fungicide (generic names), "
+        "3) Preventive measures. Always keep farmer economic constraints in mind."
+    )
+
+    try:
+        import google.generativeai as genai
+        genai.configure(api_key=settings.GEMINI_API_KEY)
+        model = genai.GenerativeModel(
+            model_name="gemini-2.5-flash",
+            system_instruction=system_prompt,
+        )
+        response = model.generate_content(question)
+        answer = response.text.strip() if response.text else ""
+        return {"query": question, "response": answer}
+    except Exception as e:
+        # Fallback advisory if Gemini is unavailable
+        print(f"[Agronomy Gemini Query] Error: {e}")
+        fallback = (
+            f"Advisory for '{question}': Apply appropriate fungicide or pesticide based on the crop and "
+            f"disease observed. Maintain proper field hygiene, ensure good air circulation between plants, "
+            f"and monitor soil moisture. Consult your local RSK or KVK extension officer for specific "
+            f"product recommendations suitable for your region."
+        )
+        return {"query": question, "response": fallback}
+
 
 class RecommendationRequest(BaseModel):
     N: float = Field(..., description="Nitrogen level in mg/kg")

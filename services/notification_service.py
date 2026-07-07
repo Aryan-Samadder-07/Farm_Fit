@@ -2,6 +2,7 @@ from google.cloud import firestore
 from typing import List, Dict, Any, Optional
 from collections import deque
 from db import get_db
+from services.email_service import EmailService
 
 # Module-level ring-buffer for the outbound alert log (polled by /api/v1/alerts/log)
 OUTBOUND_LOG: deque = deque(maxlen=200)
@@ -10,6 +11,7 @@ OUTBOUND_LOG: deque = deque(maxlen=200)
 class NotificationService:
     def __init__(self, db: firestore.Client | None = None):
         self.db = db or get_db()
+        self.email_service = EmailService()
 
         # Twilio client — only initialised when real credentials are present
         self.twilio_client = None
@@ -333,6 +335,15 @@ class NotificationService:
                     "created_at": datetime.utcnow().isoformat() + "Z",
                     "delivered": True
                 })
+
+                # Send Gmail SMTP email alert
+                self.email_service.send_alert_notification(
+                    alert_type="OUTBREAK_WARNING",
+                    title=f"Crop Outbreak Alert: {disease_name}",
+                    message=raw_message,
+                    severity=severity_level,
+                    location=affected_area,
+                )
                 
                 alerts_sent.append({
                     "farmer_id": doc.id,

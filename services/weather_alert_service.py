@@ -3,10 +3,12 @@ import random
 import datetime
 import httpx
 from google.cloud import firestore
+from services.email_service import EmailService
 
 class WeatherAlertService:
     def __init__(self, db: firestore.Client):
         self.db = db
+        self.email_service = EmailService()
 
     async def poll_and_update_weather_alerts(self, location_id: str, latitude: float, longitude: float) -> dict | None:
         """
@@ -55,6 +57,15 @@ class WeatherAlertService:
                 alert_ref = self.db.collection("weather_alerts").document(alert_id)
                 alert_ref.set(alert_data, merge=True)
                 print(f"[WeatherAlertService] Active Dry Spell alert created/updated for {location_id}.")
+
+                # Send Gmail SMTP email notification
+                self.email_service.send_alert_notification(
+                    alert_type="DRY_SPELL",
+                    title=f"Dry Spell Warning: {location_id}",
+                    message=alert_data["description"],
+                    severity="HIGH",
+                    location=location_id,
+                )
                 return alert_data
             else:
                 # If no dry spell exists, check if there was a previous alert and close/resolve it

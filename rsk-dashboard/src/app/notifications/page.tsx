@@ -2,7 +2,10 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import Navbar from '../components/Navbar';
-import { Bell, BellOff, CheckCheck, RefreshCw, AlertTriangle, AlertCircle, Info, Zap, Cloud, ShieldAlert } from 'lucide-react';
+import {
+  Bell, BellOff, CheckCheck, RefreshCw, AlertTriangle, AlertCircle,
+  Info, Zap, Cloud, ShieldAlert, Mail, Send, CheckCircle, X
+} from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
 
@@ -14,14 +17,24 @@ interface Notification {
   severity: 'CRITICAL' | 'HIGH' | 'INFO';
   created_at: string;
   delivered: boolean;
+  email_sent?: boolean;
 }
 
 const typeConfig: Record<string, { icon: any; color: string; bg: string; border: string }> = {
   OUTBREAK_WARNING:          { icon: ShieldAlert,   color: 'text-rose-600',   bg: 'bg-rose-50',   border: 'border-rose-100' },
   EXPERT_OUTBREAK_REGISTERED:{ icon: AlertTriangle, color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-100' },
   WEATHER_ALERT:             { icon: Cloud,         color: 'text-sky-600',    bg: 'bg-sky-50',    border: 'border-sky-100' },
+  DRY_SPELL:                 { icon: Zap,           color: 'text-amber-600',  bg: 'bg-amber-50',  border: 'border-amber-100' },
   SYSTEM:                    { icon: Info,          color: 'text-slate-600',  bg: 'bg-slate-50',  border: 'border-slate-200' },
 };
+
+const ALERT_TYPES = [
+  { value: 'OUTBREAK_WARNING',           label: '🚨 Outbreak Warning' },
+  { value: 'EXPERT_OUTBREAK_REGISTERED', label: '⚠️ Expert-Confirmed Outbreak' },
+  { value: 'WEATHER_ALERT',             label: '🌩️ Weather Alert' },
+  { value: 'DRY_SPELL',                 label: '☀️ Dry Spell Warning' },
+  { value: 'SYSTEM',                    label: 'ℹ️ System Notice' },
+];
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -39,6 +52,15 @@ export default function NotificationsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
+
+  // ── Test email panel state ────────────────────────────────────────────────
+  const [showEmailPanel, setShowEmailPanel] = useState(false);
+  const [testAlertType, setTestAlertType] = useState(ALERT_TYPES[0].value);
+  const [testTitle, setTestTitle] = useState('Test Alert from Farm Fit Dashboard');
+  const [testMessage, setTestMessage] = useState('This is a test notification email sent from the RSK Dashboard to verify the Gmail SMTP configuration.');
+  const [testLocation, setTestLocation] = useState('Nellore District, Andhra Pradesh');
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [emailResult, setEmailResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const fetchNotifications = useCallback(async () => {
     setIsLoading(true);
@@ -77,6 +99,36 @@ export default function NotificationsPage() {
       setUnreadCount(0);
     } catch (err) { console.error(err); }
     finally { setIsMarkingAll(false); }
+  };
+
+  // ── Send test email alert ─────────────────────────────────────────────────
+  const handleSendTestEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSendingEmail(true);
+    setEmailResult(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/v1/notifications/send-test-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          alert_type: testAlertType,
+          title: testTitle,
+          message: testMessage,
+          location: testLocation,
+          severity: testAlertType.includes('OUTBREAK') || testAlertType === 'DRY_SPELL' ? 'CRITICAL' : 'HIGH',
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setEmailResult({ success: true, message: data.message || 'Test email sent successfully!' });
+      } else {
+        setEmailResult({ success: false, message: data.detail || 'Failed to send test email.' });
+      }
+    } catch (err: any) {
+      setEmailResult({ success: false, message: err.message || 'Network error.' });
+    } finally {
+      setIsSendingEmail(false);
+    }
   };
 
   return (
@@ -126,8 +178,125 @@ export default function NotificationsPage() {
               <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
             </button>
+
+            {/* Test Email button */}
+            <button
+              id="test-email-btn"
+              onClick={() => { setShowEmailPanel(v => !v); setEmailResult(null); }}
+              className={`flex items-center gap-2 text-xs font-bold px-3 py-2 rounded-xl border transition cursor-pointer shadow-sm ${
+                showEmailPanel
+                  ? 'bg-indigo-600 text-white border-indigo-500'
+                  : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-600'
+              }`}>
+              <Mail className="h-3.5 w-3.5" />
+              Test Email Alert
+            </button>
           </div>
         </div>
+
+        {/* ── Gmail SMTP Test Panel ─────────────────────────────────────────── */}
+        {showEmailPanel && (
+          <div className="bg-gradient-to-br from-indigo-50 to-violet-50 border border-indigo-200 rounded-2xl p-6 space-y-5 animate-fade-in">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="bg-indigo-100 border border-indigo-200 p-2 rounded-xl">
+                  <Mail className="h-5 w-5 text-indigo-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-indigo-900">Gmail SMTP Alert Test</h3>
+                  <p className="text-xs text-indigo-600">Send a test notification email via your configured Gmail account</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowEmailPanel(false)}
+                className="p-1.5 bg-white border border-indigo-200 rounded-lg text-slate-400 hover:text-slate-600 cursor-pointer transition"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            {/* SMTP status */}
+            <div className="flex items-center gap-2 bg-white border border-indigo-100 rounded-xl px-4 py-2.5 text-xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+              <span className="font-semibold text-slate-700">Gmail SMTP configured</span>
+              <span className="text-slate-400 ml-1">— rythusevakendra@gmail.com (port 465 SSL)</span>
+            </div>
+
+            <form onSubmit={handleSendTestEmail} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] text-indigo-700 font-bold uppercase tracking-wider">Alert Type</label>
+                  <select
+                    value={testAlertType}
+                    onChange={e => setTestAlertType(e.target.value)}
+                    className="w-full bg-white border border-indigo-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-indigo-400 transition cursor-pointer"
+                  >
+                    {ALERT_TYPES.map(t => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] text-indigo-700 font-bold uppercase tracking-wider">Location</label>
+                  <input
+                    type="text"
+                    value={testLocation}
+                    onChange={e => setTestLocation(e.target.value)}
+                    className="w-full bg-white border border-indigo-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-indigo-400 transition"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-[10px] text-indigo-700 font-bold uppercase tracking-wider">Alert Title</label>
+                <input
+                  type="text"
+                  value={testTitle}
+                  onChange={e => setTestTitle(e.target.value)}
+                  required
+                  className="w-full bg-white border border-indigo-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-indigo-400 transition"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-[10px] text-indigo-700 font-bold uppercase tracking-wider">Alert Message</label>
+                <textarea
+                  rows={3}
+                  value={testMessage}
+                  onChange={e => setTestMessage(e.target.value)}
+                  required
+                  className="w-full bg-white border border-indigo-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-indigo-400 transition resize-none"
+                />
+              </div>
+
+              {emailResult && (
+                <div className={`flex items-center gap-2 p-3 rounded-xl text-xs font-semibold border ${
+                  emailResult.success
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                    : 'bg-rose-50 border-rose-200 text-rose-700'
+                }`}>
+                  {emailResult.success
+                    ? <CheckCircle className="h-4 w-4 shrink-0" />
+                    : <AlertCircle className="h-4 w-4 shrink-0" />}
+                  {emailResult.message}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                id="send-test-email-btn"
+                disabled={isSendingEmail}
+                className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition cursor-pointer disabled:opacity-50 text-xs uppercase tracking-wider shadow-sm"
+              >
+                {isSendingEmail ? (
+                  <><RefreshCw className="h-4 w-4 animate-spin" /> Sending…</>
+                ) : (
+                  <><Send className="h-4 w-4" /> Send Test Alert Email</>
+                )}
+              </button>
+            </form>
+          </div>
+        )}
 
         {/* Notification List */}
         {isLoading ? (
@@ -162,12 +331,18 @@ export default function NotificationsPage() {
                     <Icon className={`h-5 w-5 ${cfg.color}`} />
                   </div>
 
-                  <div className="min-w-0 space-y-1">
+                  <div className="min-w-0 space-y-1 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border ${cfg.bg} ${cfg.border} ${cfg.color}`}>
                         {n.type.replace(/_/g, ' ')}
                       </span>
                       <span className="text-[10px] text-slate-400">{timeAgo(n.created_at)}</span>
+                      {/* Email sent badge */}
+                      {n.email_sent && (
+                        <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border bg-indigo-50 border-indigo-200 text-indigo-600">
+                          <Mail className="h-2.5 w-2.5" /> Email Sent
+                        </span>
+                      )}
                     </div>
                     <h4 className={`text-sm font-bold ${n.delivered ? 'text-slate-400' : 'text-slate-800'}`}>{n.title}</h4>
                     <p className="text-xs text-slate-600 leading-relaxed">{n.message}</p>

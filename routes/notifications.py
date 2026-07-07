@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException, status, Query
-from typing import List
+from pydantic import BaseModel, Field
+from typing import List, Optional
 from services.notification_service import NotificationService
+from services.email_service import EmailService
 
 router = APIRouter(prefix="/api/v1/notifications", tags=["Notification Queue"])
 
@@ -34,3 +36,46 @@ async def mark_all_notifications_read():
         return {"success": True, "marked_count": count}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Test email endpoint (used by the Notifications dashboard panel) ───────────
+
+class SendTestEmailRequest(BaseModel):
+    alert_type: str = Field(default="SYSTEM", description="Alert type key")
+    title: str = Field(..., description="Alert headline")
+    message: str = Field(..., description="Alert body text")
+    severity: str = Field(default="HIGH", description="CRITICAL | HIGH | INFO")
+    location: Optional[str] = Field(default="", description="Location string")
+    recipient_email: Optional[str] = Field(default="", description="Override recipient; uses ALERT_EMAIL_RECIPIENT if blank")
+
+
+@router.post("/send-test-email")
+async def send_test_alert_email(req: SendTestEmailRequest):
+    """
+    Sends a test alert email via Gmail SMTP.
+    Useful for verifying SMTP configuration and previewing alert email templates.
+    """
+    email_service = EmailService()
+    try:
+        success = email_service.send_alert_notification(
+            alert_type=req.alert_type,
+            title=req.title,
+            message=req.message,
+            severity=req.severity,
+            location=req.location or "",
+            recipient_email=req.recipient_email or "",
+        )
+        if success:
+            return {
+                "success": True,
+                "message": "Test alert email sent successfully via Gmail SMTP."
+            }
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail="Email service returned failure. Check SMTP credentials in .env."
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Email send failed: {str(e)}")

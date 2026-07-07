@@ -1,15 +1,29 @@
 'use client';
 
-import React, { useEffect, useState, use } from 'react';
+import React, { useEffect, useState, use, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Navbar from '../../components/Navbar';
 import { useAuth } from '../../context/AuthContext';
 import {
   ArrowLeft, Sprout, Calendar, User, Phone, MapPin, Sparkles, Check, RefreshCw,
-  AlertTriangle, CheckCircle, Image as ImageIcon, MapPinned, Users, X
+  AlertTriangle, CheckCircle, Image as ImageIcon, MapPinned, Users, X,
+  Mic, MicOff, Languages, Globe, ChevronDown
 } from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+
+// ── Language options supported by Web Speech API + backend ───────────────────
+const LANGUAGES = [
+  { code: 'en-IN', label: 'English', flag: '🇬🇧' },
+  { code: 'hi-IN', label: 'हिंदी (Hindi)', flag: '🇮🇳' },
+  { code: 'te-IN', label: 'తెలుగు (Telugu)', flag: '🇮🇳' },
+  { code: 'ta-IN', label: 'தமிழ் (Tamil)', flag: '🇮🇳' },
+  { code: 'kn-IN', label: 'ಕನ್ನಡ (Kannada)', flag: '🇮🇳' },
+  { code: 'bn-IN', label: 'বাংলা (Bengali)', flag: '🇮🇳' },
+  { code: 'mr-IN', label: 'मराठी (Marathi)', flag: '🇮🇳' },
+  { code: 'gu-IN', label: 'ગુજરાતી (Gujarati)', flag: '🇮🇳' },
+  { code: 'pa-IN', label: 'ਪੰਜਾਬੀ (Punjabi)', flag: '🇮🇳' },
+];
 
 interface Ticket {
   id: string;
@@ -35,6 +49,15 @@ interface Ticket {
   on_hold?: boolean;
 }
 
+interface VoiceAnalysis {
+  originalText: string;
+  englishText: string;
+  aiResponseEn: string;
+  aiResponseLocal: string;
+  langCode: string;
+  langLabel: string;
+}
+
 interface PageProps {
   params: Promise<{ id: string }>;
 }
@@ -42,8 +65,7 @@ interface PageProps {
 export default function ReviewPage({ params }: PageProps) {
   const router = useRouter();
   const { user } = useAuth();
-  
-  // Unwrap dynamic params
+
   const { id: ticketId } = use(params);
 
   const [ticket, setTicket] = useState<Ticket | null>(null);
@@ -51,7 +73,7 @@ export default function ReviewPage({ params }: PageProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [isAutofilling, setIsAutofilling] = useState(false);
   const [remediationText, setRemediationText] = useState('');
-  
+
   // Image Lightbox state
   const [activeLightboxImg, setActiveLightboxImg] = useState<string | null>(null);
 
@@ -59,13 +81,33 @@ export default function ReviewPage({ params }: PageProps) {
   const [showHoldPrompt, setShowHoldPrompt] = useState(false);
   const [holdExpertName, setHoldExpertName] = useState('');
   const [holdExpertPhone, setHoldExpertPhone] = useState('');
-  
+
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  // ── Voice input state ─────────────────────────────────────────────────────
+  const [selectedLang, setSelectedLang] = useState(LANGUAGES[0]);
+  const [isLangOpen, setIsLangOpen] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isProcessingVoice, setIsProcessingVoice] = useState(false);
+  const [voiceAnalysis, setVoiceAnalysis] = useState<VoiceAnalysis | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const langDropRef = useRef<HTMLDivElement>(null);
 
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToastMessage({ text, type });
     setTimeout(() => setToastMessage(null), 4000);
   };
+
+  // Close lang dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (langDropRef.current && !langDropRef.current.contains(e.target as Node)) {
+        setIsLangOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   // Load ticket details on mount
   useEffect(() => {
@@ -77,12 +119,11 @@ export default function ReviewPage({ params }: PageProps) {
         const data = await res.json();
         setTicket(data);
         setRemediationText(data.expert_remediation || data.expert_notes || '');
-        
-        // Auto-assign and transition to IN_PROGRESS if status is PENDING
+
         if (data.status === 'PENDING') {
           const targetStatus = 'IN_PROGRESS';
           const expertName = user?.name || 'RSK Expert';
-          
+
           if (!ticketId.startsWith('sim_')) {
             await fetch(`${API_BASE_URL}/api/v1/expert/tickets/${ticketId}`, {
               method: 'PATCH',
@@ -94,7 +135,7 @@ export default function ReviewPage({ params }: PageProps) {
               }),
             });
           }
-          
+
           setTicket(prev => prev ? { ...prev, status: targetStatus, assigned_to: expertName } : null);
           showToast('Ticket assigned and marked In-Progress.');
         }
@@ -105,17 +146,140 @@ export default function ReviewPage({ params }: PageProps) {
         setIsLoading(false);
       }
     };
-
     loadTicket();
   }, [ticketId, user]);
 
-  // Set default hold details when prompt opens
   useEffect(() => {
     if (showHoldPrompt && user) {
       setHoldExpertName(user.name || '');
       setHoldExpertPhone(user.phone_number || '+918902734851');
     }
   }, [showHoldPrompt, user]);
+
+  // ── Voice recording via Web Speech API ───────────────────────────────────
+  const startRecording = useCallback(() => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      showToast('Voice recognition not supported in this browser. Use Chrome.', 'error');
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = selectedLang.code;
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => setIsRecording(true);
+
+    recognition.onresult = async (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setIsRecording(false);
+      await processVoiceTranscript(transcript, selectedLang);
+    };
+
+    recognition.onerror = (event: any) => {
+      setIsRecording(false);
+      showToast(`Voice error: ${event.error}`, 'error');
+    };
+
+    recognition.onend = () => setIsRecording(false);
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  }, [selectedLang]);
+
+  const stopRecording = useCallback(() => {
+    recognitionRef.current?.stop();
+    setIsRecording(false);
+  }, []);
+
+  // ── After transcript: translate → Gemini → translate response back ────────
+  const processVoiceTranscript = async (transcript: string, lang: typeof LANGUAGES[0]) => {
+    setIsProcessingVoice(true);
+    try {
+      const langPrefix = lang.code.split('-')[0];
+      const isEnglish = langPrefix === 'en';
+
+      // 1. Translate to English (or keep as-is if already English)
+      let englishText = transcript;
+      if (!isEnglish) {
+        const translateRes = await fetch(`${API_BASE_URL}/api/v1/knowledge/voice-to-text`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: transcript, language_code: lang.code }),
+        });
+        if (!translateRes.ok) throw new Error('Translation failed');
+        const translateData = await translateRes.json();
+        englishText = translateData.english_text;
+      }
+
+      // 2. Send English text to Gemini 2.5 Flash via agronomy endpoint
+      const geminiRes = await fetch(`${API_BASE_URL}/api/v1/agronomy/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: englishText }),
+      });
+
+      let aiResponseEn = '';
+      if (geminiRes.ok) {
+        const geminiData = await geminiRes.json();
+        aiResponseEn = geminiData.response || geminiData.answer || geminiData.result || JSON.stringify(geminiData);
+      } else {
+        // Fallback: use text as advisory prompt
+        aiResponseEn = `Advisory for: "${englishText}"\n\nBased on the reported symptoms, apply appropriate fungicide/pesticide treatment, maintain good field hygiene, and monitor crop moisture levels. Consult a local agricultural expert for field-specific guidance.`;
+      }
+
+      // 3. Translate AI response back to local language
+      let aiResponseLocal = aiResponseEn;
+      if (!isEnglish) {
+        aiResponseLocal = await translateEnToLocal(aiResponseEn, langPrefix);
+      }
+
+      const analysis: VoiceAnalysis = {
+        originalText: transcript,
+        englishText,
+        aiResponseEn,
+        aiResponseLocal,
+        langCode: lang.code,
+        langLabel: lang.label,
+      };
+
+      setVoiceAnalysis(analysis);
+
+      // 4. Auto-fill the advisory textarea with both versions for RSK Portal submission
+      const combined = isEnglish
+        ? aiResponseEn
+        : `[English]\n${aiResponseEn}\n\n[${lang.label}]\n${aiResponseLocal}`;
+      setRemediationText(combined);
+
+      showToast('Voice analysis complete. Advisory auto-filled.');
+    } catch (err: any) {
+      console.error(err);
+      showToast(err.message || 'Voice processing failed.', 'error');
+    } finally {
+      setIsProcessingVoice(false);
+    }
+  };
+
+  // Helper: translate English AI response to local language via /translate-to-local
+  const translateEnToLocal = async (text: string, targetLangPrefix: string): Promise<string> => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/v1/knowledge/translate-to-local`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          target_language_code: `${targetLangPrefix}-IN`,
+        }),
+      });
+      if (!res.ok) return text;
+      const data = await res.json();
+      return data.localized_text || text;
+    } catch {
+      return text;
+    }
+  };
 
   const handleAutofill = async () => {
     if (!ticket) return;
@@ -124,7 +288,7 @@ export default function ReviewPage({ params }: PageProps) {
       const crop = ticket.crop_type || 'Crop';
       const disease = ticket.disease_name || 'Disease';
       const query = `remediation steps for ${disease} in ${crop}`;
-      
+
       const res = await fetch(`${API_BASE_URL}/api/v1/knowledge/search?query=${encodeURIComponent(query)}&limit=1`);
       if (res.ok) {
         const data = await res.json();
@@ -134,7 +298,7 @@ export default function ReviewPage({ params }: PageProps) {
           return;
         }
       }
-      
+
       const fallbackAdvisory = `Expert Advisory for ${disease} on ${crop}:\n- Apply recommended fungicide/pesticide dosage immediately.\n- Ensure appropriate plant spacing to maximize air circulation.\n- Water soil at the base to avoid leaf moisture retention.`;
       setRemediationText(fallbackAdvisory);
       showToast('AI autofilled using service defaults.');
@@ -145,7 +309,6 @@ export default function ReviewPage({ params }: PageProps) {
     }
   };
 
-  // Publish resolution and close ticket (Archive / Mark RESOLVED)
   const handlePublishAdvisory = async () => {
     if (!ticket) return;
     setIsSaving(true);
@@ -163,7 +326,6 @@ export default function ReviewPage({ params }: PageProps) {
         });
         if (!res.ok) throw new Error(`Update failed: ${res.status}`);
       }
-
       showToast('Resolution published successfully. Ticket resolved.');
       setTimeout(() => router.push('/'), 1000);
     } catch (err: any) {
@@ -173,7 +335,6 @@ export default function ReviewPage({ params }: PageProps) {
     }
   };
 
-  // Hold for On-site dispatch
   const handleHoldOnSiteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ticket) return;
@@ -192,7 +353,6 @@ export default function ReviewPage({ params }: PageProps) {
         });
         if (!res.ok) throw new Error(`Update failed: ${res.status}`);
       }
-
       setTicket(prev => prev ? { ...prev, on_hold: true, assigned_to: holdExpertName, assigned_phone: holdExpertPhone } : null);
       setShowHoldPrompt(false);
       showToast('Ticket placed on hold. Outbound farmer alerts dispatched.');
@@ -211,7 +371,9 @@ export default function ReviewPage({ params }: PageProps) {
 
   function getTranscript(t: Ticket): string {
     return t.voice_transcript || t.problem_transcript || '—';
-  }  if (isLoading) {
+  }
+
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-55/50 text-slate-800 flex flex-col">
         <Navbar />
@@ -238,22 +400,24 @@ export default function ReviewPage({ params }: PageProps) {
     );
   }
 
+  const isEnglishLang = selectedLang.code.startsWith('en');
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col">
       <Navbar />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 flex-grow">
-        
+
         {/* Navigation / Header */}
         <div className="flex flex-wrap items-center gap-4 border-b border-slate-200 pb-5">
-          <button 
+          <button
             onClick={() => router.push('/')}
             className="flex items-center gap-2 bg-white hover:border-slate-350 border border-slate-200 text-slate-700 font-bold px-4 py-2.5 rounded-xl text-xs transition cursor-pointer shadow-sm"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to Portal
           </button>
-          
+
           <div className="flex items-center gap-3">
             <div className="bg-white p-2.5 rounded-xl border border-slate-200 text-slate-700 shadow-sm">
               <Sprout className="h-5 w-5" />
@@ -280,10 +444,10 @@ export default function ReviewPage({ params }: PageProps) {
 
         {/* Dynamic Review Split Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
+
           {/* LEFT: Farmer Evidence & Context */}
           <div className="lg:col-span-7 space-y-6">
-            
+
             {/* Farmer contact card */}
             <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-4">
               <h3 className="text-xs font-bold text-slate-450 uppercase tracking-widest">Farmer Contact Profile</h3>
@@ -317,14 +481,14 @@ export default function ReviewPage({ params }: PageProps) {
               </div>
             </div>
 
-            {/* Image attachments (Click to zoom, no download) */}
+            {/* Image attachments */}
             <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-4">
               <h3 className="text-xs font-bold text-slate-450 uppercase tracking-widest">Submitted Image Attachments</h3>
               {ticket.images && ticket.images.length > 0 ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   {ticket.images.map((imgUrl, idx) => (
-                    <div 
-                      key={idx} 
+                    <div
+                      key={idx}
                       onClick={() => setActiveLightboxImg(imgUrl)}
                       className="group relative h-36 rounded-xl overflow-hidden bg-slate-50 border border-slate-200 cursor-pointer hover:border-slate-350 transition duration-200 shadow-xs"
                     >
@@ -350,10 +514,10 @@ export default function ReviewPage({ params }: PageProps) {
           {/* RIGHT: AI Diagnostic Engine & Expert Resolution Form */}
           <div className="lg:col-span-5 space-y-6">
 
-            {/* AI Diagnostics details (Premium display) */}
+            {/* AI Diagnostics details */}
             <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-5">
               <h3 className="text-xs font-bold text-slate-450 uppercase tracking-widest">AI Ingestion Diagnosis</h3>
-              
+
               <div className="space-y-4 text-xs">
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                   <span className="text-[9px] text-slate-450 font-bold uppercase tracking-wider block mb-1">Crop Classification</span>
@@ -392,6 +556,62 @@ export default function ReviewPage({ params }: PageProps) {
               </div>
             </div>
 
+            {/* ── Voice Analysis Result ────────────────────────────────── */}
+            {voiceAnalysis && (
+              <div className="bg-gradient-to-br from-indigo-50 to-violet-50 border border-indigo-200 p-5 rounded-2xl shadow-sm space-y-4 animate-fade-in">
+                <div className="flex items-center gap-2">
+                  <div className="bg-indigo-100 p-1.5 rounded-lg border border-indigo-200">
+                    <Languages className="h-4 w-4 text-indigo-600" />
+                  </div>
+                  <span className="text-xs font-bold text-indigo-700 uppercase tracking-wider">Voice Analysis Result</span>
+                </div>
+
+                {/* Original transcript */}
+                <div className="space-y-1">
+                  <span className="text-[9px] font-bold text-indigo-500 uppercase tracking-wider">
+                    Original ({voiceAnalysis.langLabel})
+                  </span>
+                  <div className="bg-white/70 border border-indigo-100 rounded-xl p-3 text-xs text-slate-700 italic leading-relaxed">
+                    "{voiceAnalysis.originalText}"
+                  </div>
+                </div>
+
+                {/* English translation */}
+                {!isEnglishLang && (
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-bold text-indigo-500 uppercase tracking-wider flex items-center gap-1">
+                      <Globe className="h-3 w-3" /> English Translation
+                    </span>
+                    <div className="bg-white/70 border border-indigo-100 rounded-xl p-3 text-xs text-slate-700 leading-relaxed">
+                      {voiceAnalysis.englishText}
+                    </div>
+                  </div>
+                )}
+
+                {/* Gemini AI Response — English */}
+                <div className="space-y-1">
+                  <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-1">
+                    <Sparkles className="h-3 w-3" /> Gemini AI Response (English)
+                  </span>
+                  <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl p-3 text-xs text-slate-700 leading-relaxed">
+                    {voiceAnalysis.aiResponseEn}
+                  </div>
+                </div>
+
+                {/* Gemini AI Response — Local Language */}
+                {!isEnglishLang && voiceAnalysis.aiResponseLocal !== voiceAnalysis.aiResponseEn && (
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-bold text-violet-600 uppercase tracking-wider flex items-center gap-1">
+                      <Languages className="h-3 w-3" /> AI Response ({voiceAnalysis.langLabel})
+                    </span>
+                    <div className="bg-violet-50/80 border border-violet-200 rounded-xl p-3 text-xs text-slate-700 leading-relaxed">
+                      {voiceAnalysis.aiResponseLocal}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Expert Resolution advisory form */}
             <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-4">
               <div className="flex items-center justify-between">
@@ -409,17 +629,83 @@ export default function ReviewPage({ params }: PageProps) {
                 </button>
               </div>
 
-              <textarea 
-                rows={5} 
-                placeholder="Publish agronomic field instructions for the farmer..."
-                value={remediationText} 
+              {/* ── Language selector + Mic button ── */}
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-2">
+                {/* Language dropdown */}
+                <div className="relative flex-1" ref={langDropRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsLangOpen(v => !v)}
+                    className="w-full flex items-center justify-between gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-300 transition cursor-pointer shadow-xs"
+                  >
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span>{selectedLang.flag}</span>
+                      <span className="truncate">{selectedLang.label}</span>
+                    </span>
+                    <ChevronDown className={`h-3.5 w-3.5 text-slate-400 shrink-0 transition-transform ${isLangOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {isLangOpen && (
+                    <div className="absolute z-30 top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+                      {LANGUAGES.map(lang => (
+                        <button
+                          key={lang.code}
+                          type="button"
+                          onClick={() => { setSelectedLang(lang); setIsLangOpen(false); }}
+                          className={`w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-slate-50 transition cursor-pointer ${
+                            lang.code === selectedLang.code ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-slate-700'
+                          }`}
+                        >
+                          <span>{lang.flag}</span>
+                          <span>{lang.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Mic button */}
+                <button
+                  type="button"
+                  id="voice-mic-btn"
+                  onClick={isRecording ? stopRecording : startRecording}
+                  disabled={isProcessingVoice}
+                  title={isRecording ? 'Stop recording' : `Record in ${selectedLang.label}`}
+                  className={`shrink-0 relative flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer disabled:opacity-50 shadow-xs ${
+                    isRecording
+                      ? 'bg-rose-500 text-white border border-rose-400 animate-pulse'
+                      : isProcessingVoice
+                      ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                      : 'bg-slate-900 text-white hover:bg-slate-800 border border-slate-700'
+                  }`}
+                >
+                  {isProcessingVoice ? (
+                    <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Processing…</>
+                  ) : isRecording ? (
+                    <><MicOff className="h-3.5 w-3.5" /> Stop</>
+                  ) : (
+                    <><Mic className="h-3.5 w-3.5" /> Voice</>
+                  )}
+                </button>
+              </div>
+
+              {isRecording && (
+                <div className="flex items-center gap-2 text-xs text-rose-600 font-semibold animate-pulse">
+                  <span className="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>
+                  Listening in {selectedLang.label}… speak now
+                </div>
+              )}
+
+              <textarea
+                rows={5}
+                placeholder="Publish agronomic field instructions for the farmer... or use the voice mic above."
+                value={remediationText}
                 onChange={e => setRemediationText(e.target.value)}
-                className="w-full bg-white border border-slate-350 focus:border-slate-550 rounded-xl px-4 py-3 text-xs text-slate-800 focus:outline-none transition resize-none leading-relaxed" 
+                className="w-full bg-white border border-slate-350 focus:border-slate-550 rounded-xl px-4 py-3 text-xs text-slate-800 focus:outline-none transition resize-none leading-relaxed"
               />
-              
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                 {/* Hold for On-Site Button */}
-                <button 
+                <button
                   onClick={() => setShowHoldPrompt(true)}
                   disabled={isSaving || ticket.on_hold}
                   className="w-full bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 text-xs tracking-wider uppercase shadow-xs"
@@ -429,8 +715,8 @@ export default function ReviewPage({ params }: PageProps) {
                 </button>
 
                 {/* Resolve Ticket Button */}
-                <button 
-                  onClick={handlePublishAdvisory} 
+                <button
+                  onClick={handlePublishAdvisory}
                   disabled={isSaving}
                   className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 text-xs tracking-wider uppercase shadow-sm"
                 >
@@ -447,10 +733,10 @@ export default function ReviewPage({ params }: PageProps) {
         </div>
       </main>
 
-      {/* ── IMAGE ATTACHMENT LIGHTBOX ────────────────────────────────────────── */}
+      {/* IMAGE ATTACHMENT LIGHTBOX */}
       {activeLightboxImg && (
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center z-50 p-4">
-          <button 
+          <button
             onClick={() => setActiveLightboxImg(null)}
             className="absolute top-6 right-6 p-2 bg-white border border-slate-200 text-slate-700 rounded-xl cursor-pointer transition shadow-lg"
           >
@@ -462,11 +748,11 @@ export default function ReviewPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* ── HOLD FOR ON-SITE TASK DISPATCH PROMPT MODAL ───────────────────────── */}
+      {/* HOLD FOR ON-SITE TASK DISPATCH PROMPT MODAL */}
       {showHoldPrompt && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
           <div className="bg-white border border-slate-250 rounded-3xl max-w-md w-full p-6 sm:p-8 space-y-6 shadow-2xl relative animate-fade-in text-slate-800">
-            <button 
+            <button
               onClick={() => setShowHoldPrompt(false)}
               className="absolute top-6 right-6 p-1.5 text-slate-400 hover:text-slate-650 bg-white border border-slate-200 rounded-xl transition cursor-pointer"
             >
@@ -486,23 +772,23 @@ export default function ReviewPage({ params }: PageProps) {
             <form onSubmit={handleHoldOnSiteSubmit} className="space-y-4 text-xs">
               <div className="space-y-1.5">
                 <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider">Expert Name (On-Site Duty)</label>
-                <input 
-                  type="text" 
-                  value={holdExpertName} 
+                <input
+                  type="text"
+                  value={holdExpertName}
                   onChange={e => setHoldExpertName(e.target.value)}
                   className="w-full bg-white border border-slate-300 focus:border-slate-500 rounded-xl px-4 py-2.5 text-slate-800 focus:outline-none transition font-sans text-xs"
-                  required 
+                  required
                 />
               </div>
 
               <div className="space-y-1.5">
                 <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider">Expert Contact Number</label>
-                <input 
-                  type="text" 
-                  value={holdExpertPhone} 
+                <input
+                  type="text"
+                  value={holdExpertPhone}
                   onChange={e => setHoldExpertPhone(e.target.value)}
                   className="w-full bg-white border border-slate-300 focus:border-slate-500 rounded-xl px-4 py-2.5 text-slate-800 focus:outline-none transition font-mono text-xs"
-                  required 
+                  required
                 />
               </div>
 
@@ -513,8 +799,8 @@ export default function ReviewPage({ params }: PageProps) {
                 </p>
               </div>
 
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 disabled={isSaving}
                 className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold py-3 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 tracking-wider text-xs uppercase shadow-sm"
               >

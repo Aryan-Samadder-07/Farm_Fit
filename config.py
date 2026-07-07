@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     SMTP_PORT: int = Field(default=465, alias="SMTP_PORT")
     SMTP_USERNAME: str = Field(default="", alias="SMTP_USERNAME")
     SMTP_PASSWORD: str = Field(default="", alias="SMTP_PASSWORD")
+    # Recipient for system-level alert emails (outbreak, weather, etc.)
+    ALERT_EMAIL_RECIPIENT: str = Field(default="", alias="ALERT_EMAIL_RECIPIENT")
 
     # ── FastAPI server ────────────────────────────────────────────────────────
     environment: str = Field(default="development", alias="ENVIRONMENT")
