@@ -9,17 +9,43 @@ router = APIRouter(prefix="/api/v1/knowledge", tags=["Agricultural RAG Knowledge
 
 class RAGQueryRequest(BaseModel):
     query: str = Field(..., description="Query phrase or farmer concern. E.g. 'How to cure tomato blight?'")
-    top_k: int = Field(2, description="Number of relevant document snippets to retrieve")
+    top_k: int = Field(5, description="Number of relevant document snippets to retrieve")
 
 class RAGSnippet(BaseModel):
     doc_id: str = Field(..., description="Seeded document ID reference")
     title: str = Field(..., description="Document title")
     text: str = Field(..., description="Document matching snippet text")
     similarity: float = Field(..., description="Cosine similarity confidence score")
+    category: str = Field("general", description="Document category")
 
 class RAGQueryResponse(BaseModel):
     query: str = Field(..., description="Echoed input search query")
     relevant_passages: List[RAGSnippet] = Field(..., description="Sorted list of retrieved snippets")
+
+
+# ── New dual-layer search models ──────────────────────────────────────────────
+
+class SearchRequest(BaseModel):
+    query: str = Field(..., description="Search query in English")
+    top_k: int = Field(5, description="Number of local corpus results to return")
+
+class WebSource(BaseModel):
+    title: str
+    url: str
+    snippet: str = ""
+
+class LocalPassage(BaseModel):
+    doc_id: str
+    title: str
+    text: str
+    category: str = "general"
+    similarity: float
+
+class SearchResponse(BaseModel):
+    query: str
+    answer: str = Field(..., description="AI-synthesized answer from web grounding")
+    web_sources: List[WebSource] = Field(default_factory=list)
+    local_passages: List[LocalPassage] = Field(default_factory=list)
 
 
 @router.post("/query", response_model=RAGQueryResponse)
@@ -36,6 +62,31 @@ async def query_agriculture_knowledge(payload: RAGQueryRequest):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Knowledge retrieval RAG failed: {str(e)}"
+        )
+
+
+@router.post("/search", response_model=SearchResponse)
+async def dual_layer_search(payload: SearchRequest):
+    """
+    Dual-layer universal search engine:
+    - Layer 1: Gemini 2.0 Flash + Google Search grounding (live web, highest accuracy)
+    - Layer 2: 25-document local corpus with Gemini embeddings + cosine similarity
+    Both run concurrently and results are merged.
+    """
+    try:
+        service = KnowledgeService()
+        result = await service.search(payload.query, payload.top_k)
+        return {
+            "query": payload.query,
+            "answer": result["answer"],
+            "web_sources": result["web_sources"],
+            "local_passages": result["local_passages"],
+        }
+    except Exception as e:
+        print(f"Error in dual_layer_search: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Search failed: {str(e)}"
         )
 
 

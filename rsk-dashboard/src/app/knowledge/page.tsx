@@ -4,7 +4,8 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import Navbar from '../components/Navbar';
 import {
   FileText, Search, RefreshCw, AlertCircle, Database, Sparkles,
-  Mic, MicOff, Languages, Globe, ChevronDown, ChevronUp
+  Mic, MicOff, Languages, Globe, ChevronDown, ExternalLink,
+  BookOpen, TrendingUp, Shield, Zap, Leaf,
 } from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -21,196 +22,138 @@ const LANGUAGES = [
   { code: 'pa-IN', label: 'ਪੰਜਾਬੀ (Punjabi)', flag: '🇮🇳' },
 ];
 
-interface RAGResult {
-  doc_id: string;
-  title: string;
-  text: string;
-  similarity: number;
-  // bilingual fields (set when a local-language query was used)
-  title_en?: string;
-  text_en?: string;
-  lang_label?: string;
-}
+const CATEGORY_META: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+  disease: { label: 'Disease', color: 'bg-rose-50 text-rose-700 border border-rose-200', icon: <Shield className="h-3 w-3" /> },
+  pest:    { label: 'Pest',    color: 'bg-orange-50 text-orange-700 border border-orange-200', icon: <Zap className="h-3 w-3" /> },
+  scheme:  { label: 'Scheme',  color: 'bg-emerald-50 text-emerald-700 border border-emerald-200', icon: <TrendingUp className="h-3 w-3" /> },
+  soil:    { label: 'Soil',    color: 'bg-amber-50 text-amber-700 border border-amber-200', icon: <Leaf className="h-3 w-3" /> },
+  agronomy:{ label: 'Agronomy',color: 'bg-teal-50 text-teal-700 border border-teal-200', icon: <Leaf className="h-3 w-3" /> },
+  market:  { label: 'Market',  color: 'bg-blue-50 text-blue-700 border border-blue-200', icon: <TrendingUp className="h-3 w-3" /> },
+  general: { label: 'General', color: 'bg-slate-50 text-slate-600 border border-slate-200', icon: <BookOpen className="h-3 w-3" /> },
+};
 
-interface SearchMeta {
-  originalQuery: string;
-  englishQuery: string;
-  langLabel: string;
-  isLocalLang: boolean;
+const QUICK_SEARCHES = [
+  'West Bengal farming schemes 2024',
+  'How to treat rice blast disease',
+  'PM-KISAN eligibility criteria',
+  'Drip irrigation subsidy rules',
+  'Cotton bollworm management',
+  'MSP prices for wheat and paddy',
+  'Organic farming certification India',
+  'Fall armyworm in maize control',
+];
+
+interface WebSource   { title: string; url: string; snippet: string; }
+interface LocalPassage{ doc_id: string; title: string; text: string; category: string; similarity: number; }
+interface SearchResult{
+  query: string;
+  answer: string;
+  web_sources: WebSource[];
+  local_passages: LocalPassage[];
 }
 
 export default function KnowledgePage() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [results, setResults] = useState<RAGResult[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const [searchMeta, setSearchMeta] = useState<SearchMeta | null>(null);
-  const [expandedCards, setExpandedCards] = useState<Record<number, 'en' | 'local'>>({});
-  const [englishTranslation, setEnglishTranslation] = useState('');
+  const [searchQuery, setSearchQuery]       = useState('');
+  const [result, setResult]                 = useState<SearchResult | null>(null);
+  const [isSearching, setIsSearching]       = useState(false);
+  const [searchError, setSearchError]       = useState<string | null>(null);
+  const [englishQuery, setEnglishQuery]     = useState('');
+  const [expandedPassages, setExpandedPassages] = useState<Record<number, boolean>>({});
 
-  // Language selector
-  const [selectedLang, setSelectedLang] = useState(LANGUAGES[0]);
-  const [isLangOpen, setIsLangOpen] = useState(false);
-  const langDropRef = useRef<HTMLDivElement>(null);
+  const [selectedLang, setSelectedLang]     = useState(LANGUAGES[0]);
+  const [isLangOpen, setIsLangOpen]         = useState(false);
+  const langDropRef                         = useRef<HTMLDivElement>(null);
 
-  // Voice recording
-  const [isRecording, setIsRecording] = useState(false);
+  const [isRecording, setIsRecording]           = useState(false);
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef                          = useRef<any>(null);
 
-  // Close lang dropdown on outside click
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (langDropRef.current && !langDropRef.current.contains(e.target as Node)) {
+    const h = (e: MouseEvent) => {
+      if (langDropRef.current && !langDropRef.current.contains(e.target as Node))
         setIsLangOpen(false);
-      }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
   }, []);
 
-  // ── Standard text search ──────────────────────────────────────────────────
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
-    await runSearch(searchQuery, selectedLang);
-  };
-
+  // ── Search logic ────────────────────────────────────────────────────────────
   const runSearch = async (query: string, lang: typeof LANGUAGES[0]) => {
+    if (!query.trim()) return;
     setIsSearching(true);
     setSearchError(null);
-    setResults([]);
-    setSearchMeta(null);
-    setEnglishTranslation('');
-    setExpandedCards({});
+    setResult(null);
+    setExpandedPassages({});
 
     const langPrefix = lang.code.split('-')[0];
-    const containsNonEnglish = /[^\x00-\x7F]/.test(query);
-    const isEnglish = langPrefix === 'en' && !containsNonEnglish;
-    const searchLanguageCode = isEnglish ? 'en-IN' : (containsNonEnglish && langPrefix === 'en' ? 'auto' : lang.code);
+    const isEnglish  = langPrefix === 'en' && !/[^\x00-\x7F]/.test(query);
 
     try {
-      if (isEnglish) {
-        // Standard RAG query — results are English only
-        const res = await fetch(`${API_BASE_URL}/api/v1/knowledge/query`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query, top_k: 3 }),
-        });
-        if (!res.ok) throw new Error(`RAG search failed: ${res.status}`);
-        const data = await res.json();
-        setResults(data.relevant_passages || []);
-        setSearchMeta({
-          originalQuery: query,
-          englishQuery: query,
-          langLabel: lang.label,
-          isLocalLang: false,
-        });
+      let englishSearchQuery = query;
+
+      if (!isEnglish) {
+        try {
+          const tr = await fetch(`${API_BASE_URL}/api/v1/knowledge/voice-to-text`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: query, language_code: lang.code }),
+          });
+          if (tr.ok) {
+            const td = await tr.json();
+            englishSearchQuery = td.english_text || query;
+            setEnglishQuery(englishSearchQuery);
+          }
+        } catch { /* fall through */ }
       } else {
-        // Bilingual preprocessed search
-        const fd = new FormData();
-        fd.append('text', query);
-        fd.append('language_code', searchLanguageCode);
-        fd.append('top_k', '3');
-
-        const res = await fetch(`${API_BASE_URL}/api/v1/knowledge/query-preprocessed`, {
-          method: 'POST',
-          body: fd,
-        });
-        if (!res.ok) throw new Error(`Preprocessed RAG search failed: ${res.status}`);
-        const data = await res.json();
-        setEnglishTranslation(data.english_query || '');
-
-        // data.relevant_passages are the translated (local-language) results
-        // We also fetch the English originals in parallel
-        const englishRes = await fetch(`${API_BASE_URL}/api/v1/knowledge/query`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: data.english_query, top_k: 3 }),
-        });
-        const englishData = englishRes.ok ? await englishRes.json() : { relevant_passages: [] };
-        const englishPassages: any[] = englishData.relevant_passages || [];
-
-        // Merge local + English versions by index
-        const merged: RAGResult[] = (data.relevant_passages || []).map((p: any, i: number) => ({
-          doc_id: p.doc_id,
-          title: p.title,           // local language title
-          text: p.text,             // local language text
-          similarity: p.similarity,
-          title_en: englishPassages[i]?.title || p.title,
-          text_en: englishPassages[i]?.text || p.text,
-          lang_label: lang.label,
-        }));
-
-        setResults(merged);
-        setSearchMeta({
-          originalQuery: data.original_query || query,
-          englishQuery: data.english_query || query,
-          langLabel: lang.label,
-          isLocalLang: true,
-        });
-
-        // Default: show local language tab
-        const defaults: Record<number, 'en' | 'local'> = {};
-        merged.forEach((_, i) => { defaults[i] = 'local'; });
-        setExpandedCards(defaults);
+        setEnglishQuery('');
       }
+
+      const res = await fetch(`${API_BASE_URL}/api/v1/knowledge/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: englishSearchQuery, top_k: 6 }),
+      });
+      if (!res.ok) throw new Error(`Search failed: ${res.status}`);
+      setResult(await res.json());
     } catch (err: any) {
-      console.error(err);
-      setSearchError(err.message || 'Failed to search agricultural knowledge base.');
+      setSearchError(err.message || 'Failed to search knowledge base.');
     } finally {
       setIsSearching(false);
     }
   };
 
-  // ── Voice search via Web Speech API ──────────────────────────────────────
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await runSearch(searchQuery, selectedLang);
+  };
+
+  // ── Voice ───────────────────────────────────────────────────────────────────
   const startRecording = useCallback(() => {
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert('Voice recognition not supported in this browser. Use Chrome.');
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = selectedLang.code;
-    recognition.continuous = false;
-    recognition.interimResults = false;
-
-    recognition.onstart = () => setIsRecording(true);
-
-    recognition.onresult = async (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      setIsRecording(false);
-      setIsProcessingVoice(true);
-      setSearchQuery(transcript);
-      await runSearch(transcript, selectedLang);
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) { alert('Voice recognition requires Chrome.'); return; }
+    const r = new SR();
+    r.lang = selectedLang.code;
+    r.continuous = false;
+    r.interimResults = false;
+    r.onstart  = () => setIsRecording(true);
+    r.onresult = async (e: any) => {
+      const t = e.results[0][0].transcript;
+      setIsRecording(false); setIsProcessingVoice(true);
+      setSearchQuery(t);
+      await runSearch(t, selectedLang);
       setIsProcessingVoice(false);
     };
-
-    recognition.onerror = (event: any) => {
-      setIsRecording(false);
-      setIsProcessingVoice(false);
-      setSearchError(`Voice error: ${event.error}`);
-    };
-
-    recognition.onend = () => setIsRecording(false);
-
-    recognitionRef.current = recognition;
-    recognition.start();
+    r.onerror = (e: any) => { setIsRecording(false); setIsProcessingVoice(false); setSearchError(`Voice error: ${e.error}`); };
+    r.onend   = () => setIsRecording(false);
+    recognitionRef.current = r;
+    r.start();
   }, [selectedLang]);
 
-  const stopRecording = useCallback(() => {
-    recognitionRef.current?.stop();
-    setIsRecording(false);
-  }, []);
+  const stopRecording = useCallback(() => { recognitionRef.current?.stop(); setIsRecording(false); }, []);
 
-  const toggleCard = (idx: number) => {
-    setExpandedCards(prev => ({
-      ...prev,
-      [idx]: prev[idx] === 'local' ? 'en' : 'local',
-    }));
-  };
+  const hasAnswer  = result && result.answer && result.answer.length > 10;
+  const hasSources = result && result.web_sources && result.web_sources.length > 0;
+  const hasLocal   = result && result.local_passages && result.local_passages.length > 0;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col">
@@ -225,12 +168,13 @@ export default function KnowledgePage() {
           </div>
           <h2 className="text-2xl font-black tracking-tight text-slate-900">Agricultural RAG Search Engine</h2>
           <p className="text-sm text-slate-500 font-medium max-w-lg mx-auto">
-            Query the vector database containing ICAR manuals, crop disease advisories, and state government schemes.
-            Supports voice input in local languages — results shown in both English and your selected language.
+            Search anything — crop diseases, government schemes, MSP prices, soil science, pest control.
+            Live web results via Gemini grounding&nbsp;+&nbsp;verified local knowledge base.
+            Supports voice input in local languages.
           </p>
         </div>
 
-        {/* Language selector + Search Bar */}
+        {/* Language + Search bar */}
         <div className="space-y-2">
           {/* Language row */}
           <div className="flex items-center gap-2">
@@ -249,22 +193,22 @@ export default function KnowledgePage() {
                 <div className="absolute z-30 top-full mt-1 left-0 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden w-52">
                   {LANGUAGES.map(lang => (
                     <button
-                      key={lang.code}
-                      type="button"
+                      key={lang.code} type="button"
                       onClick={() => { setSelectedLang(lang); setIsLangOpen(false); }}
                       className={`w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-slate-50 transition cursor-pointer ${
                         lang.code === selectedLang.code ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-slate-700'
                       }`}
                     >
-                      <span>{lang.flag}</span>
-                      <span>{lang.label}</span>
+                      <span>{lang.flag}</span><span>{lang.label}</span>
                     </button>
                   ))}
                 </div>
               )}
             </div>
             <span className="text-xs text-slate-400 font-medium">
-              {selectedLang.code.startsWith('en') ? 'English search — results in English' : `${selectedLang.label} search — bilingual results`}
+              {selectedLang.code.startsWith('en')
+                ? 'English search — web + local corpus'
+                : `${selectedLang.label} search — auto-translated`}
             </span>
           </div>
 
@@ -274,15 +218,13 @@ export default function KnowledgePage() {
               type="text"
               id="rag-search-input"
               placeholder={selectedLang.code.startsWith('en')
-                ? 'E.g., How to cure tomato late blight? Or AP irrigation subsidy rules...'
+                ? 'Search anything: schemes, diseases, prices, techniques…'
                 : `Type or speak in ${selectedLang.label}…`}
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={e => setSearchQuery(e.target.value)}
               className="flex-grow bg-white border border-slate-300 focus:border-slate-500 rounded-2xl px-5 py-3 text-sm focus:outline-none text-slate-800 transition duration-150 shadow-xs"
               required
             />
-
-            {/* Mic button */}
             <button
               type="button"
               id="rag-voice-btn"
@@ -297,63 +239,55 @@ export default function KnowledgePage() {
                   : 'bg-indigo-600 hover:bg-indigo-700 text-white'
               }`}
             >
-              {isProcessingVoice ? (
-                <RefreshCw className="h-4 w-4 animate-spin" />
-              ) : isRecording ? (
-                <MicOff className="h-4 w-4" />
-              ) : (
-                <Mic className="h-4 w-4" />
-              )}
+              {isProcessingVoice ? <RefreshCw className="h-4 w-4 animate-spin" /> : isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
             </button>
-
-            {/* Search button */}
             <button
               type="submit"
               id="rag-search-btn"
               disabled={isSearching || isRecording}
               className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-6 py-3 rounded-2xl transition duration-150 flex items-center gap-2 cursor-pointer disabled:opacity-50 shadow-xs"
             >
-              {isSearching ? (
-                <RefreshCw className="h-4 w-4 animate-spin" />
-              ) : (
-                <Search className="h-4 w-4" />
-              )}
+              {isSearching ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               Search
             </button>
           </form>
 
           {isRecording && (
             <p className="text-xs text-rose-600 font-semibold flex items-center gap-2 animate-pulse pl-1">
-              <span className="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>
-              Listening in {selectedLang.label}… speak your crop query
+              <span className="w-2 h-2 rounded-full bg-rose-500 inline-block" />
+              Listening in {selectedLang.label}… speak your query
             </p>
           )}
 
-          {/* Debug English translation box */}
-          {englishTranslation && (
-            <div className="bg-slate-100 border border-slate-200 rounded-xl px-4 py-2 text-xs flex items-center gap-2 text-slate-600 animate-fade-in font-medium">
-              <span className="font-bold text-slate-500 uppercase tracking-wider text-[9px] bg-slate-200 px-1.5 py-0.5 rounded shrink-0">Debug EN Translation</span>
-              <span className="italic">"{englishTranslation}"</span>
+          {englishQuery && (
+            <div className="bg-slate-100 border border-slate-200 rounded-xl px-4 py-2 text-xs flex items-center gap-2 text-slate-600 font-medium">
+              <Languages className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+              Searching in English: <span className="italic text-slate-500">"{englishQuery}"</span>
             </div>
           )}
         </div>
 
-        {/* Search meta banner */}
-        {searchMeta?.isLocalLang && (
-          <div className="bg-indigo-50 border border-indigo-200 rounded-2xl px-5 py-3 text-xs space-y-1">
-            <div className="flex items-center gap-2 text-indigo-700 font-bold">
-              <Languages className="h-4 w-4" />
-              Multilingual Search Active
-            </div>
-            <div className="text-indigo-600 space-y-0.5">
-              <p><span className="font-semibold text-slate-700">Original ({searchMeta.langLabel}):</span> {searchMeta.originalQuery}</p>
-              <p><span className="font-semibold text-emerald-700">English (Passed to Vector DB):</span> {searchMeta.englishQuery}</p>
+        {/* Quick searches — only shown before first search */}
+        {!result && !isSearching && (
+          <div className="space-y-2">
+            <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider pl-1">Suggested searches</p>
+            <div className="flex flex-wrap gap-2">
+              {QUICK_SEARCHES.map(q => (
+                <button
+                  key={q} type="button"
+                  onClick={() => { setSearchQuery(q); runSearch(q, selectedLang); }}
+                  className="px-3 py-1.5 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-xs text-slate-600 font-medium transition cursor-pointer shadow-xs hover:bg-slate-50"
+                >
+                  {q}
+                </button>
+              ))}
             </div>
           </div>
         )}
 
+        {/* Error */}
         {searchError && (
-          <div className="bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-xl flex items-center gap-3 text-sm animate-fade-in">
+          <div className="bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-xl flex items-center gap-3 text-sm">
             <AlertCircle className="h-5 w-5 shrink-0" />
             <span>{searchError}</span>
           </div>
@@ -361,74 +295,115 @@ export default function KnowledgePage() {
 
         {/* Results */}
         <div className="space-y-4">
-          {results.length > 0 ? (
-            results.map((doc, idx) => {
-              const isBilingual = !!doc.text_en && doc.text_en !== doc.text;
 
-              return (
-                <div key={idx} className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden animate-fade-in">
-                  {/* Card header */}
-                  <div className="flex justify-between items-center px-6 pt-5 pb-3 border-b border-slate-100">
-                    <span className="text-xs font-bold text-emerald-700 flex flex-wrap gap-x-2 gap-y-1 items-center">
-                      <FileText className="h-4 w-4 text-emerald-600 shrink-0" />
-                      {isBilingual ? (
-                        <span>
-                          {doc.title_en} <span className="text-slate-400 font-normal mx-1">|</span> <span className="text-indigo-650 font-semibold">{doc.title}</span>
-                        </span>
-                      ) : (
-                        doc.title
-                      )}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] bg-slate-50 text-slate-650 px-2 py-0.5 rounded font-bold border border-slate-200">
-                        {Math.round(doc.similarity * 100)}% match
-                      </span>
-                    </div>
-                  </div>
+          {/* ── AI Overview ── */}
+          {hasAnswer && (
+            <div className="bg-white border border-indigo-200 rounded-2xl shadow-sm overflow-hidden">
+              <div className="flex items-center gap-2 px-6 pt-4 pb-3 border-b border-indigo-100 bg-indigo-50/50">
+                <Sparkles className="h-4 w-4 text-indigo-600" />
+                <span className="text-xs font-bold text-indigo-700 uppercase tracking-wider">AI Overview — Gemini Web Grounded Answer</span>
+                {hasSources && (
+                  <span className="ml-auto text-xs text-slate-400">{result!.web_sources.length} web source{result!.web_sources.length !== 1 ? 's' : ''}</span>
+                )}
+              </div>
+              <div className="px-6 py-5">
+                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{result!.answer}</p>
+              </div>
 
-                  {/* Card body */}
-                  <div className="px-6 py-4 space-y-4">
-                    {isBilingual ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded w-max">
-                            <Globe className="h-3 w-3" /> English
-                          </span>
-                          <p className="text-sm text-slate-700 leading-relaxed font-medium bg-slate-50/60 rounded-xl p-3 border border-slate-150">
-                            {doc.text_en}
-                          </p>
+              {hasSources && (
+                <div className="px-6 pb-5 space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Sources</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {result!.web_sources.slice(0, 6).map((src, i) => (
+                      <a
+                        key={i} href={src.url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-start gap-2 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition group cursor-pointer"
+                      >
+                        <Globe className="h-3.5 w-3.5 text-indigo-500 mt-0.5 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-slate-700 group-hover:text-indigo-700 truncate transition">{src.title || 'Web Source'}</p>
+                          {src.url && (
+                            <p className="text-[10px] text-slate-400 truncate flex items-center gap-1">
+                              {src.url.replace(/^https?:\/\//, '').split('/')[0]}
+                              <ExternalLink className="h-2.5 w-2.5" />
+                            </p>
+                          )}
                         </div>
-                        <div className="space-y-1.5">
-                          <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider flex items-center gap-1 bg-indigo-50 px-2 py-0.5 rounded w-max">
-                            <Languages className="h-3 w-3" /> {doc.lang_label}
-                          </span>
-                          <p className="text-sm text-slate-750 leading-relaxed font-semibold bg-indigo-50/20 rounded-xl p-3 border border-indigo-100/60">
-                            {doc.text}
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-slate-700 leading-relaxed font-medium">
-                        {doc.text}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Card footer */}
-                  <div className="px-6 pb-4 text-[10px] text-slate-400 flex items-center gap-1">
-                    <Sparkles className="h-3 w-3 text-slate-500" /> Vector Source ID: {doc.doc_id}
+                      </a>
+                    ))}
                   </div>
                 </div>
-              );
-            })
-          ) : (
-            !isSearching && searchQuery && (
-              <div className="text-center py-10 text-slate-400 text-sm">
-                No matching reference documents found in vector space.
+              )}
+            </div>
+          )}
+
+          {/* ── Local corpus ── */}
+          {hasLocal && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 pl-1">
+                <FileText className="h-4 w-4 text-emerald-600" />
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Local Knowledge Base</span>
+                <span className="text-xs text-slate-400">— {result!.local_passages.length} matching documents</span>
               </div>
-            )
+
+              {result!.local_passages.map((doc, idx) => {
+                const meta = CATEGORY_META[doc.category] || CATEGORY_META.general;
+                const isExpanded = expandedPassages[idx];
+                const preview = doc.text.length > 220 ? doc.text.slice(0, 220) + '…' : doc.text;
+
+                return (
+                  <div key={idx} className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+                    {/* Header */}
+                    <div className="flex justify-between items-center px-6 pt-5 pb-3 border-b border-slate-100">
+                      <span className="text-xs font-bold text-emerald-700 flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-emerald-600 shrink-0" />
+                        {doc.title}
+                      </span>
+                      <div className="flex items-center gap-2 shrink-0 ml-3">
+                        <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${meta.color}`}>
+                          {meta.icon}{meta.label}
+                        </span>
+                        <span className="text-[10px] bg-slate-50 text-slate-600 px-2 py-0.5 rounded font-bold border border-slate-200">
+                          {Math.round(Math.min(doc.similarity * 150, 100))}% match
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Body */}
+                    <div className="px-6 py-4">
+                      <p className="text-sm text-slate-700 leading-relaxed font-medium">
+                        {isExpanded ? doc.text : preview}
+                      </p>
+                      {doc.text.length > 220 && (
+                        <button
+                          type="button"
+                          onClick={() => setExpandedPassages(p => ({ ...p, [idx]: !p[idx] }))}
+                          className="mt-2 text-xs text-indigo-600 hover:text-indigo-800 font-semibold transition cursor-pointer"
+                        >
+                          {isExpanded ? '↑ Show less' : '↓ Read more'}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="px-6 pb-4 text-[10px] text-slate-400 flex items-center gap-1">
+                      <Sparkles className="h-3 w-3 text-slate-400" />
+                      Vector Source ID: {doc.doc_id}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Empty state */}
+          {result && !hasAnswer && !hasLocal && (
+            <div className="text-center py-10 text-slate-400 text-sm">
+              No matching results found. Try rephrasing your query.
+            </div>
           )}
         </div>
+
       </main>
     </div>
   );
