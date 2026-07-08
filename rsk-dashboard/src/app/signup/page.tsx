@@ -197,6 +197,11 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
+      <div className="absolute top-6 left-6">
+        <Link href="/" className="inline-flex items-center gap-1.5 text-xs font-black text-slate-500 hover:text-slate-900 transition">
+          &larr; Back to Home
+        </Link>
+      </div>
       
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center space-y-4 relative z-10">
         <div className="inline-flex bg-slate-100 p-3 rounded-2xl border border-slate-200 text-slate-700">

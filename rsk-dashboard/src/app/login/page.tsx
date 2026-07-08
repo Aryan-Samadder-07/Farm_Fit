@@ -13,6 +13,18 @@ export default function LoginPage() {
   
   // Auth Mode: 'FARMER' | 'PROFESSIONAL'
   const [roleMode, setRoleMode] = useState<'FARMER' | 'PROFESSIONAL'>('FARMER');
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const role = params.get('role');
+      if (role === 'professional') {
+        setRoleMode('PROFESSIONAL');
+      } else if (role === 'farmer') {
+        setRoleMode('FARMER');
+      }
+    }
+  }, []);
   
   // Form State
   const [name, setName] = useState('');
@@ -147,14 +159,19 @@ export default function LoginPage() {
   }, [roleMode]);
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative">
+      <div className="absolute top-6 left-6">
+        <Link href="/" className="inline-flex items-center gap-1.5 text-xs font-black text-slate-500 hover:text-slate-900 transition">
+          &larr; Back to Home
+        </Link>
+      </div>
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center space-y-3">
         <div className="inline-flex bg-slate-900 p-3 rounded-xl text-white">
           <Sprout className="h-7 w-7" />
         </div>
         <h2 className="text-2xl font-bold tracking-tight text-slate-900">
-          Kisan Alert AI
+          Farm Fit
         </h2>
         <p className="text-xs text-slate-400 font-medium tracking-wider uppercase">
           National Agricultural Intelligence & Expert System

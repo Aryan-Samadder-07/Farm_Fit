@@ -294,7 +294,7 @@ export default function AnalyticsLoggingPage() {
                 <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
                 <div>
                   <h4 className="font-bold text-slate-800 mb-1">DLT Compliance Note</h4>
-                  Ensure data values match MANDI weigh-in records before publishing. Incorrect submissions must be manually reconciled by the RSK administrator.
+                  Ensure data values match MANDI weigh-in records before publishing. Incorrect submissions must be manually reconciled by the Farm Fit administrator.
                 </div>
               </div>
 

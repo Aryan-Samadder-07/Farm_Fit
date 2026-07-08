@@ -56,9 +56,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (isLoading) return;
 
     const isAuthPage = pathname === '/login' || pathname === '/signup';
+    const isLandingPage = pathname === '/';
     
-    // Redirect unauthenticated users to /login
-    if (!token && !isAuthPage) {
+    // Redirect unauthenticated users to /login (allow root landing page)
+    if (!token && !isAuthPage && !isLandingPage) {
       router.push('/login');
       return;
     }

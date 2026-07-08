@@ -249,7 +249,7 @@ export default function ReviewPage({ params }: PageProps) {
 
       setVoiceAnalysis(analysis);
 
-      // 4. Auto-fill the advisory textarea with both versions for RSK Portal submission
+      // 4. Auto-fill the advisory textarea with both versions for Farm Fit Portal submission
       const combined = isEnglish
         ? aiResponseEn
         : `[English]\n${aiResponseEn}\n\n[${lang.label}]\n${aiResponseLocal}`;

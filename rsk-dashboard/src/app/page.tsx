@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation';
 import Navbar from './components/Navbar';
 import { useAuth } from './context/AuthContext';
 import {
-  Sprout, AlertTriangle, CheckCircle, Clock, Search,
-  User, Calendar, RefreshCw, Sparkles, MapPin, Phone
+  Sprout, AlertTriangle, CheckCircle, Search,
+  User, Calendar, RefreshCw, Sparkles, MapPin, Phone,
+  ChevronRight, ArrowRight, ShieldCheck, HeartHandshake, CloudLightning
 } from 'lucide-react';
+import Link from 'next/link';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
 
@@ -37,7 +39,7 @@ interface Ticket {
 
 export default function RSKDashboard() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, token, isLoading: isAuthLoading } = useAuth();
   
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -52,6 +54,7 @@ export default function RSKDashboard() {
 
   // Fetch all tickets from backend API
   const fetchTickets = useCallback(async () => {
+    if (!token) return;
     setIsLoading(true);
     try {
       const res = await fetch(`${API_BASE_URL}/api/v1/expert/tickets/all`);
@@ -64,50 +67,20 @@ export default function RSKDashboard() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [token]);
 
   useEffect(() => {
-    fetchTickets();
-  }, [fetchTickets]);
+    if (token) {
+      fetchTickets();
+    }
+  }, [fetchTickets, token]);
 
   // Navigate to detailed review page
   const handleSelectTicket = (ticket: Ticket) => {
     router.push(`/review/${ticket.id}`);
   };
 
-  // Generate simulated ticket
-  const handleGenerateMockTicket = async () => {
-    const names = ['Ramesh Kurva', 'Srinivas Rao', 'Chandra Babu', 'Subba Reddy', 'Murali Mohan'];
-    const crops = ['Tomato', 'Rice', 'Cotton', 'Maize', 'Chilli'];
-    const diseases = [
-      { name: 'Late Blight', severity: 'HIGH', steps: ['Spraying copper fungicides', 'Maintain plant canopy ventilation'] },
-      { name: 'Rice Blast', severity: 'HIGH', steps: ['Tricyclazole application', 'Proper field drying'] },
-      { name: 'Leaf Blight', severity: 'MEDIUM', steps: ['Mancozeb 0.2% spray', 'Seed treatment'] },
-      { name: 'Healthy Plant', severity: 'LOW', steps: ['Optimal soil conditions', 'Normal watering schedule'] },
-    ];
-    const d = diseases[Math.floor(Math.random() * diseases.length)];
-
-    const mockTicket: Ticket = {
-      id: `sim_${Date.now()}`,
-      farmer_name: names[Math.floor(Math.random() * names.length)],
-      phone_number: '+919876543210',
-      village_name: 'Podalakur Mandal',
-      crop_type: crops[Math.floor(Math.random() * crops.length)],
-      disease_name: d.name,
-      confidence: parseFloat((0.75 + Math.random() * 0.2).toFixed(2)),
-      severity_level: d.severity as any,
-      voice_transcript: `Simulated report: Found symptoms of ${d.name}.`,
-      status: 'PENDING',
-      created_at: new Date().toISOString(),
-      remediation_steps: d.steps,
-      images: ['/media__1782798295887.png']
-    };
-
-    setTickets(prev => [mockTicket, ...prev]);
-    showToast('Simulated farmer alert added to queue.');
-  };
-
-  // Stats calculation (Excluding resolved tickets from active queue counts where necessary)
+  // Stats calculation
   const stats = {
     total: tickets.filter(t => t.status !== 'RESOLVED').length,
     pending: tickets.filter(t => (t.status || 'PENDING') === 'PENDING').length,
@@ -117,10 +90,8 @@ export default function RSKDashboard() {
 
   // Filtered ticket queue list
   const filteredTickets = tickets.filter(t => {
-    // 1. Resolved tickets should NOT show up in the RSK Portal at all
     if (t.status === 'RESOLVED') return false;
 
-    // 2. Perform search match query
     const q = searchQuery.toLowerCase();
     const matchSearch =
       (t.farmer_name || '').toLowerCase().includes(q) ||
@@ -132,11 +103,9 @@ export default function RSKDashboard() {
     const s = t.status || 'PENDING';
     const isAssignedToMe = user ? t.assigned_to === user.name : false;
 
-    // 3. Tab filter rules
     if (filterTab === 'PENDING') {
       return s === 'PENDING';
     }
-    // In-Progress and On-Hold only show if assigned to you
     if (filterTab === 'IN_PROGRESS') {
       return s === 'IN_PROGRESS' && isAssignedToMe && !t.on_hold;
     }
@@ -147,9 +116,191 @@ export default function RSKDashboard() {
       return t.severity_level === 'HIGH';
     }
 
-    return true; // 'ALL' tab shows all active non-resolved tickets
+    return true; // 'ALL' tab
   });
 
+  // ── LOADING STATE ──────────────────────────────────────────────────────────
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="h-8 w-8 animate-spin text-slate-400 mx-auto mb-4" />
+          <p className="text-sm font-semibold text-slate-500">Checking credentials…</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── LANDING PAGE (UNAUTHENTICATED) ─────────────────────────────────────────
+  if (!token) {
+    return (
+      <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
+        {/* Simple Top Landing Navbar */}
+        <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-50">
+          <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center">
+                <Sprout className="h-4.5 w-4.5 text-white" />
+              </div>
+              <span className="text-lg font-black text-slate-900 tracking-tight">Farm Fit</span>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <Link href="/login" className="text-xs font-bold text-slate-600 hover:text-slate-900 px-4 py-2 transition">
+                Log In
+              </Link>
+              <Link href="/signup" className="text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl transition shadow-xs">
+                Get Started
+              </Link>
+            </div>
+          </div>
+        </header>
+
+        {/* Hero Section */}
+        <section className="bg-gradient-to-b from-white to-slate-50 py-20 px-6">
+          <div className="max-w-7xl mx-auto text-center space-y-6">
+            <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-100 text-emerald-800 px-4 py-1.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider">
+              <Sparkles className="h-3 w-3" /> Bridging the Agricultural Last Mile
+            </div>
+            
+            <h1 className="text-4xl sm:text-6xl font-black text-slate-900 tracking-tight leading-tight max-w-4xl mx-auto">
+              Connecting Agronomists to India’s Farming Communities
+            </h1>
+            
+            <p className="text-slate-500 text-sm sm:text-base max-w-2xl mx-auto leading-relaxed font-medium">
+              We empower smallholder farmers with immediate advisory and diagnostic support, minimizing risk, preventing crop failures, and boosting food security.
+            </p>
+            
+            <div className="pt-4">
+              <Link href="/login?role=farmer" className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-7 py-3.5 rounded-2xl transition shadow-md hover:scale-[1.02]">
+                Access Rythu Seva Portal <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* Presentation Slide Segment - "Who It Serves" */}
+        <section className="bg-white py-16 border-t border-b border-slate-100 px-6">
+          <div className="max-w-6xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+              
+              {/* Left Column: Core Narrative */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-3">
+                  <div className="h-7 w-1 bg-emerald-500 rounded-full" />
+                  <h2 className="text-2xl font-black text-slate-900 tracking-tight">Who It Serves</h2>
+                </div>
+                
+                <h3 className="text-xl font-bold text-slate-800 tracking-tight leading-snug">
+                  Empowering India's Smallholders
+                </h3>
+                
+                <p className="text-slate-600 text-sm leading-relaxed font-medium">
+                  Designed primarily for India's 120 million small and marginal farmers who face critical information gaps and rely on basic mobile technologies, a smart all-in-one AI Integrated system to solve all of their problems.
+                </p>
+                
+                <p className="text-slate-600 text-sm leading-relaxed font-medium">
+                  By connecting with the Farm Fit networks, we connect field agronomists directly with isolated farmers, providing rapid diagnostic and advisory support to the absolute last mile.
+                </p>
+
+                <div className="pt-2 flex flex-wrap gap-4">
+                  <div className="flex items-center gap-2 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-100">
+                    <ShieldCheck className="h-4.5 w-4.5 text-emerald-600" />
+                    <span className="text-xs font-bold text-slate-700">Crop Health Protection</span>
+                  </div>
+                  <div className="flex items-center gap-2 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-100">
+                    <HeartHandshake className="h-4.5 w-4.5 text-indigo-600" />
+                    <span className="text-xs font-bold text-slate-700">Direct Farm Fit Linkage</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Reference presentation image */}
+              <div className="relative rounded-3xl overflow-hidden border border-slate-200 shadow-lg group">
+                <img 
+                  src="/landingimage1.jpg" 
+                  alt="Indian Smallholder Farmer holding smartphone in field"
+                  className="w-full h-auto object-cover max-h-[420px] group-hover:scale-102 transition duration-500"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+              </div>
+
+            </div>
+          </div>
+        </section>
+
+        {/* Secondary Story Section */}
+        <section className="bg-slate-50/50 py-16 px-6">
+          <div className="max-w-6xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+              
+              {/* Left Column: Image 2 */}
+              <div className="relative rounded-3xl overflow-hidden border border-slate-200 shadow-lg group order-last md:order-first">
+                <img 
+                  src="/landingimage2.jpg" 
+                  alt="Rural farming community and agronomic intervention"
+                  className="w-full h-auto object-cover max-h-[420px] group-hover:scale-102 transition duration-500"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+              </div>
+
+              {/* Right Column: Explanation */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-3">
+                  <div className="h-7 w-1 bg-indigo-500 rounded-full" />
+                  <h2 className="text-2xl font-black text-slate-900 tracking-tight">How It Helps</h2>
+                </div>
+                
+                <h3 className="text-xl font-bold text-slate-800 tracking-tight leading-snug">
+                  Providing Rapid Diagnostics and Local Advisories
+                </h3>
+                
+                <p className="text-slate-600 text-sm leading-relaxed font-medium">
+                  We turn isolated data points into collective farming defense networks. By enabling real-time outbreak mapping and targeted notifications, Farm Fit mitigates pest spreads before they escalate.
+                </p>
+
+                <p className="text-slate-600 text-sm leading-relaxed font-medium">
+                  Farmers receive expert-verified crop prescriptions in their local languages, bypassing literacy barriers with intuitive speech-to-text systems.
+                </p>
+
+                <div className="pt-2">
+                  <Link href="/signup" className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-600 hover:text-emerald-700 transition">
+                    Learn more about our mission <ChevronRight className="h-4 w-4" />
+                  </Link>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </section>
+
+        {/* Closing CTA */}
+        <section className="bg-slate-900 text-white py-16 px-6 text-center space-y-6">
+          <div className="max-w-4xl mx-auto space-y-4">
+            <h2 className="text-3xl font-black tracking-tight">Ready to safeguard agricultural yields?</h2>
+            <p className="text-slate-400 text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
+              Log in to access agricultural maps, report crop anomalies, query commodity mandis, or review pending alerts.
+            </p>
+            <div className="pt-4 flex items-center justify-center gap-3">
+              <Link href="/signup" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-3 rounded-xl transition text-xs">
+                Register as Expert/Farmer
+              </Link>
+              <Link href="/login" className="bg-white/10 hover:bg-white/15 border border-white/10 text-white font-bold px-6 py-3 rounded-xl transition text-xs">
+                Enter Portal
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* Footer */}
+        <footer className="bg-slate-950 text-slate-500 py-8 px-6 text-center text-[10px] font-bold uppercase tracking-wider border-t border-slate-900">
+          © {new Date().getFullYear()} Farm Fit Agricultural Intelligence Platform. All rights reserved.
+        </footer>
+      </div>
+    );
+  }
+
+  // ── RSK EXPERT PORTAL (AUTHENTICATED) ─────────────────────────────────────
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col">
       <Navbar />
