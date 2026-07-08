@@ -16,8 +16,10 @@ class GISService:
         
         for doc in docs:
             data = doc.to_dict()
-            lat = data.get("latitude", 14.44 + (0.03 * (idx % 5 - 2)))
-            lon = data.get("longitude", 79.98 + (0.03 * (idx % 7 - 3)))
+            lat = data.get("latitude")
+            lon = data.get("longitude")
+            if lat is None or lon is None:
+                continue
             
             features.append({
                 "type": "Feature",
@@ -52,8 +54,10 @@ class GISService:
 
         for doc in docs:
             data = doc.to_dict()
-            lat = data.get("latitude", 14.4625)
-            lon = data.get("longitude", 79.9912)
+            lat = data.get("latitude")
+            lon = data.get("longitude")
+            if lat is None or lon is None:
+                continue
             features.append({
                 "type": "Feature",
                 "geometry": {
@@ -62,8 +66,8 @@ class GISService:
                 },
                 "properties": {
                     "disease_name": data.get("disease_name", "Unknown"),
-                    "village": data.get("village", "Unknown"),
-                    "district": data.get("district", "AP"),
+                    "village": data.get("village") or data.get("village_name") or "—",
+                    "district": data.get("district") or "—",
                     "affected_farmer_count": data.get("affected_farmer_count", 0),
                     "average_confidence": data.get("average_confidence", 0.0)
                 }
@@ -112,16 +116,39 @@ class GISService:
     async def get_full_map_layers(self) -> Dict[str, Any]:
         """
         Returns all GIS layers bundled together for a single-request map load.
+        Computes map center dynamically from actual data centroid.
         """
         farmer_layer = await self.get_farmer_locations_layer()
         outbreak_layer = await self.get_outbreak_clusters_layer()
+
+        # Compute centroid from all available data points
+        all_lats = []
+        all_lons = []
+        for f in farmer_layer.get("features", []):
+            coords = f.get("geometry", {}).get("coordinates", [])
+            if len(coords) == 2:
+                all_lons.append(coords[0])
+                all_lats.append(coords[1])
+        for f in outbreak_layer.get("features", []):
+            coords = f.get("geometry", {}).get("coordinates", [])
+            if len(coords) == 2:
+                all_lons.append(coords[0])
+                all_lats.append(coords[1])
+
+        if all_lats and all_lons:
+            center_lat = sum(all_lats) / len(all_lats)
+            center_lon = sum(all_lons) / len(all_lons)
+        else:
+            # No real data yet — use a neutral India-centre fallback
+            center_lat = 20.5937
+            center_lon = 78.9629
 
         return {
             "farmer_locations": farmer_layer,
             "outbreak_clusters": outbreak_layer,
             "center": {
-                "lat": 14.4426,
-                "lon": 79.9865
+                "lat": center_lat,
+                "lon": center_lon
             }
         }
 

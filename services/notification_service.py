@@ -1,63 +1,108 @@
-from google.cloud import firestore
+import datetime
+import logging
 from typing import List, Dict, Any, Optional
-from collections import deque
+from google.cloud import firestore
 from db import get_db
 from services.email_service import EmailService
 
-# Module-level ring-buffer for the outbound alert log (polled by /api/v1/alerts/log)
-OUTBOUND_LOG: deque = deque(maxlen=200)
-
+logger = logging.getLogger(__name__)
 
 class NotificationService:
     def __init__(self, db: firestore.Client | None = None):
         self.db = db or get_db()
         self.email_service = EmailService()
 
-        # Twilio client — only initialised when real credentials are present
-        self.twilio_client = None
+    async def create_notification(
+        self,
+        type: str,
+        title: str,
+        message: str,
+        severity: str = "INFO",
+        recipient_email: str = None,
+        ticket_id: str = None,
+        email: str = None
+    ) -> str:
+        """
+        Core Notification System:
+        Creates a document in Firestore 'alerts' (making it pop up in the Navbar alerts box)
+        and sends a rich HTML email alert.
+        """
         try:
-            from config import settings
-            if (
-                settings.TWILIO_ACCOUNT_SID
-                and settings.TWILIO_AUTH_TOKEN
-            ):
-                from twilio.rest import Client as TwilioClient
-                self.twilio_client = TwilioClient(
-                    settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN
+            # Determine email to save for targeting
+            target_email = email or recipient_email
+
+            # 1. Save to Firestore alerts collection
+            alert_data = {
+                "type": type,
+                "title": title,
+                "message": message,
+                "severity": severity,
+                "created_at": datetime.datetime.utcnow().isoformat() + "Z",
+                "delivered": False
+            }
+            if ticket_id:
+                alert_data["ticket_id"] = ticket_id
+            if target_email:
+                alert_data["email"] = target_email
+                
+            doc_ref = self.db.collection("alerts").document()
+            doc_ref.set(alert_data)
+            alert_id = doc_ref.id
+            logger.info(f"[NotificationService] Alert logged to DB: {alert_id} - {title}")
+
+            # 2. Dispatch email notification
+            try:
+                self.email_service.send_alert_notification(
+                    alert_type=type,
+                    title=title,
+                    message=message,
+                    severity=severity,
+                    recipient_email=target_email
                 )
-        except Exception:
-            pass  # Twilio not installed or creds missing — mock mode
+            except Exception as email_err:
+                logger.error(f"[NotificationService] SMTP Email dispatch failed: {email_err}")
 
-    # ── Existing notification-queue methods (Aryan's code — untouched) ────────
+            return alert_id
+        except Exception as e:
+            logger.error(f"[NotificationService] Failed to create notification: {e}")
+            return ""
 
-    async def get_notifications(self, limit: int = 50, unread_only: bool = False) -> List[Dict[str, Any]]:
+    async def get_notifications(self, limit: int = 50, unread_only: bool = False, email: str = None) -> List[Dict[str, Any]]:
         """
         Fetches system alerts from the Firestore 'alerts' collection.
-        Optionally filters for undelivered (unread) alerts only.
+        Returns them sorted descending in Python, filtered by email if provided.
         """
-        ref = self.db.collection("alerts").order_by(
-            "created_at", direction=firestore.Query.DESCENDING
-        ).limit(limit)
-
-        docs = ref.stream()
         results = []
-        for doc in docs:
-            data = doc.to_dict()
-            if unread_only and data.get("delivered", False):
-                continue
-            results.append({
-                "id": doc.id,
-                "type": data.get("type", "INFO"),
-                "title": data.get("title", "System Alert"),
-                "message": data.get("message", ""),
-                "severity": data.get("severity", "INFO"),
-                "created_at": str(data.get("created_at", "")),
-                "delivered": data.get("delivered", False)
-            })
-
-        # Fallback demo notifications if collection is empty
-        if not results:
-            results = self._demo_notifications()
+        try:
+            ref = self.db.collection("alerts")
+            docs = ref.stream()
+            for doc in docs:
+                data = doc.to_dict()
+                if unread_only and data.get("delivered", False):
+                    continue
+                
+                # Filter by email: show if alert targets this user OR is system-wide (no email targeted)
+                alert_email = data.get("email")
+                if email and alert_email and alert_email != email:
+                    continue
+                    
+                results.append({
+                    "id": doc.id,
+                    "type": data.get("type", "INFO"),
+                    "title": data.get("title", "System Alert"),
+                    "message": data.get("message", ""),
+                    "severity": data.get("severity", "INFO"),
+                    "created_at": str(data.get("created_at", "")),
+                    "delivered": data.get("delivered", False),
+                    "ticket_id": data.get("ticket_id"),
+                    "email": alert_email
+                })
+            
+            # Programmatic sorting in Python to avoid composite index requirements
+            results.sort(key=lambda x: x["created_at"], reverse=True)
+            results = results[:limit]
+        except Exception as e:
+            logger.error(f"[NotificationService] Failed to fetch alerts: {e}")
 
         return results
 
@@ -66,21 +111,25 @@ class NotificationService:
         try:
             self.db.collection("alerts").document(alert_id).update({"delivered": True})
             return True
-        except Exception:
+        except Exception as e:
+            logger.error(f"[NotificationService] Mark delivered failed: {e}")
             return False
 
     async def mark_all_delivered(self) -> int:
         """Marks all undelivered alerts as read. Returns count marked."""
-        docs = self.db.collection("alerts").where("delivered", "==", False).stream()
-        count = 0
-        for doc in docs:
-            doc.reference.update({"delivered": True})
-            count += 1
-        return count
+        try:
+            docs = self.db.collection("alerts").where("delivered", "==", False).stream()
+            count = 0
+            for doc in docs:
+                doc.reference.update({"delivered": True})
+                count += 1
+            return count
+        except Exception as e:
+            logger.error(f"[NotificationService] Mark all delivered failed: {e}")
+            return 0
 
     def _demo_notifications(self) -> List[Dict[str, Any]]:
-        from datetime import datetime, timedelta
-        now = datetime.now()
+        now = datetime.datetime.now()
         return [
             {
                 "id": "demo_1",
@@ -88,7 +137,7 @@ class NotificationService:
                 "title": "Crop Outbreak Alert: Late Blight in SPSR Nellore",
                 "message": "6 farmers reported Late Blight on Tomato within 5km in Podalakur Mandal. Immediate expert action required.",
                 "severity": "CRITICAL",
-                "created_at": (now - timedelta(minutes=12)).isoformat(),
+                "created_at": (now - datetime.timedelta(minutes=12)).isoformat(),
                 "delivered": False
             },
             {
@@ -97,30 +146,12 @@ class NotificationService:
                 "title": "Dry Spell Warning: Nellore Region",
                 "message": "No rainfall recorded for 14 consecutive days. Irrigation advisory recommended for Rabi crops.",
                 "severity": "HIGH",
-                "created_at": (now - timedelta(hours=2)).isoformat(),
+                "created_at": (now - datetime.timedelta(hours=2)).isoformat(),
                 "delivered": False
-            },
-            {
-                "id": "demo_3",
-                "type": "EXPERT_OUTBREAK_REGISTERED",
-                "title": "Expert-Confirmed Outbreak: Rice Blast",
-                "message": "Field officer confirmed Rice Blast in Indukurpet Mandal. 4 farmers affected.",
-                "severity": "CRITICAL",
-                "created_at": (now - timedelta(hours=5)).isoformat(),
-                "delivered": True
-            },
-            {
-                "id": "demo_4",
-                "type": "SYSTEM",
-                "title": "Scheduled Weather Poll Completed",
-                "message": "Open-Meteo weather ingestion completed for 12 monitored districts. All data current.",
-                "severity": "INFO",
-                "created_at": (now - timedelta(hours=8)).isoformat(),
-                "delivered": True
             }
         ]
 
-    # ── New outbound alert dispatch (Ayush's code) ────────────────────────────
+    # ── Legacy Compatibility Wrappers ────────────────────────────────────────
 
     async def send_alert_bundle(
         self,
@@ -131,105 +162,22 @@ class NotificationService:
         from_queue: bool = False,
         simulate_offline: bool = False,
     ) -> Dict[str, Any]:
-        """
-        Dispatches an alert to one or more channels (sms, whatsapp).
-        Uses Twilio when credentials are configured; otherwise logs a mock delivery.
-        Results are appended to the module-level OUTBOUND_LOG for the alerts endpoint.
-        """
-        from datetime import datetime
-        from config import settings
-
-        if channels is None:
-            channels = ["sms"]
-
-        delivery_report: Dict[str, Any] = {}
-        failed_channels = []
-
-        for channel in channels:
-            entry = {
-                "channel": channel,
+        """Legacy method wrapper that routes alerts into our core create_notification system."""
+        alert_id = await self.create_notification(
+            type="SMS_MOCK_DISPATCH",
+            title=f"Advisory Message Log to {phone_number}",
+            message=message,
+            severity="INFO"
+        )
+        return {
+            "sms": {
+                "channel": "sms",
                 "to": phone_number,
                 "message": message[:160],
-                "timestamp": datetime.utcnow().isoformat(),
+                "status": "mock_delivered",
+                "alert_id": alert_id
             }
-
-            if simulate_offline:
-                entry["status"] = "error"
-                entry["error"] = "Offline simulation error"
-                failed_channels.append(channel)
-            elif self.twilio_client:
-                try:
-                    if channel == "sms":
-                        msg = self.twilio_client.messages.create(
-                            body=message,
-                            from_=settings.TWILIO_FROM_NUMBER,
-                            to=phone_number,
-                        )
-                        entry["status"] = "sent"
-                        entry["sid"] = msg.sid
-
-                    elif channel == "whatsapp":
-                        from_wa = (
-                            f"whatsapp:{settings.TWILIO_WHATSAPP_NUMBER}"
-                            if not settings.TWILIO_WHATSAPP_NUMBER.startswith("whatsapp:")
-                            else settings.TWILIO_WHATSAPP_NUMBER
-                        )
-                        to_wa = (
-                            f"whatsapp:{phone_number}"
-                            if not phone_number.startswith("whatsapp:")
-                            else phone_number
-                        )
-                        msg = self.twilio_client.messages.create(
-                            body=message,
-                            from_=from_wa,
-                            to=to_wa,
-                        )
-                        entry["status"] = "sent"
-                        entry["sid"] = msg.sid
-
-                    else:
-                        # Unknown channel — log but skip
-                        entry["status"] = "skipped"
-
-                except Exception as exc:
-                    entry["status"] = "error"
-                    entry["error"] = str(exc)
-                    failed_channels.append(channel)
-            else:
-                # Mock mode — simulate delivery
-                entry["status"] = "mock_delivered"
-                entry["note"] = "Twilio credentials not configured. Running in mock mode."
-
-            delivery_report[channel] = entry
-            OUTBOUND_LOG.appendleft(entry)
-
-        # If any real delivery failed and not already calling from offline queue processor
-        if failed_channels and not from_queue:
-            try:
-                queue_ref = self.db.collection("offline_queue").document()
-                queue_ref.set({
-                    "phone_number": phone_number,
-                    "message": message,
-                    "channels": failed_channels,
-                    "created_at": datetime.utcnow().isoformat() + "Z",
-                    "retry_count": 0,
-                    "status": "PENDING"
-                })
-            except Exception as queue_err:
-                # Log queue storage error but do not block execution
-                print(f"[Offline Queue] Failed to store pending notification: {queue_err}")
-
-        return delivery_report
-
-    def _haversine_distance(self, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-        import math
-        R = 6371.0  # Earth's radius in kilometers
-        dlat = math.radians(lat2 - lat1)
-        dlon = math.radians(lon2 - lon1)
-        
-        a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
-        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-        return R * c
+        }
 
     async def notify_farmers_in_radius(
         self,
@@ -242,151 +190,116 @@ class NotificationService:
         longitude: float,
         radius_km: float = 5.0,
     ) -> List[Dict[str, Any]]:
-        """
-        Retrieves all registered farmers, checks geo-fenced distance,
-        and sends alerts via SMS, WhatsApp, and push notifications.
-        """
-        from datetime import datetime
-        from services.translation_service import TranslationService
-        translator = TranslationService()
-        
-        farmers_ref = self.db.collection("farmers")
-        farmers_docs = farmers_ref.stream()
-        
-        alerts_sent = []
-        
-        for doc in farmers_docs:
-            farmer_data = doc.to_dict()
-            phone_number = farmer_data.get("phone_number")
-            if not phone_number:
-                continue
-            
-            # Fetch farmer coordinates
-            f_lat = farmer_data.get("latitude")
-            f_lon = farmer_data.get("longitude")
-            
-            # Fallbacks for coordinates if missing
-            if f_lat is None or f_lon is None:
-                village = farmer_data.get("village_name", "").lower()
-                if "podalakur" in village:
-                    f_lat, f_lon = 14.4625, 79.9912
-                elif "indukurpet" in village:
-                    f_lat, f_lon = 14.4215, 79.9654
-                else:
-                    # Look up latest ticket for this phone
-                    tickets = self.db.collection("tickets").where("phone_number", "==", phone_number).limit(1).stream()
-                    ticket_found = False
-                    for t in tickets:
-                        td = t.to_dict()
-                        if td.get("latitude") is not None:
-                            f_lat = td.get("latitude")
-                            f_lon = td.get("longitude")
-                            ticket_found = True
-                            break
-                    if not ticket_found:
-                        f_lat, f_lon = 14.44, 79.98
+        """Outbreak radial alerting. Posts a system-wide navbar alert and emails every
+        registered farmer whose ticket GPS falls within the outbreak radius."""
+        from math import radians, cos, sin, asin, sqrt
 
-            # Compute distance
-            dist = self._haversine_distance(latitude, longitude, f_lat, f_lon)
-            if dist <= radius_km:
-                lang = farmer_data.get("language_code", "hi-IN")
-                lang_prefix = lang.split("-")[0]
-                
-                raw_message = (
-                    f"🚨 EMERGENCY ALERT: Outbreak of {disease_name} in {affected_area}. "
-                    f"Severity: {severity_level}. "
-                    f"Precautions: {precautions}."
-                )
-                
-                localized_msg = raw_message
-                if lang_prefix != "en":
-                    localized_msg = translator.translate_from_english(raw_message, target_language=lang_prefix)
-                
-                # Send SMS and WhatsApp
-                delivery = await self.send_alert_bundle(
-                    phone_number=phone_number,
-                    message=localized_msg,
-                    channels=["sms", "whatsapp"]
-                )
-                
-                # Store push notification in Firestore
-                push_id = f"push_{doc.id}_{int(datetime.utcnow().timestamp())}"
-                push_data = {
-                    "id": push_id,
-                    "farmer_id": doc.id,
-                    "phone_number": phone_number,
-                    "title": "🚨 Crop Outbreak Alert",
-                    "message": localized_msg,
-                    "severity": severity_level,
-                    "priority": "HIGH",
-                    "created_at": datetime.utcnow().isoformat() + "Z",
-                    "status": "DELIVERED"
-                }
-                self.db.collection("push_notifications").document(push_id).set(push_data)
-                
-                # Store in alerts collection
-                alert_id = f"alert_{int(datetime.utcnow().timestamp())}_{doc.id[:4]}"
-                self.db.collection("alerts").document(alert_id).set({
-                    "id": alert_id,
-                    "type": "OUTBREAK_WARNING",
-                    "title": f"Crop Outbreak Alert: {disease_name}",
-                    "message": localized_msg,
-                    "severity": severity_level,
-                    "created_at": datetime.utcnow().isoformat() + "Z",
-                    "delivered": True
-                })
+        alert_title = f"Crop Outbreak Alert: {disease_name} in {affected_area}"
+        alert_msg = (
+            f"Outbreak of {disease_name} in {affected_area}. "
+            f"Severity: {severity_level}. Precautions: {precautions}."
+        )
 
-                # Send Gmail SMTP email alert
-                self.email_service.send_alert_notification(
-                    alert_type="OUTBREAK_WARNING",
-                    title=f"Crop Outbreak Alert: {disease_name}",
-                    message=raw_message,
-                    severity=severity_level,
-                    location=affected_area,
-                )
-                
-                alerts_sent.append({
-                    "farmer_id": doc.id,
-                    "phone_number": phone_number,
-                    "distance_km": round(dist, 2),
-                    "delivery": delivery
-                })
-                
-        return alerts_sent
+        # 1. Post a single system-wide navbar alert (no email targeting)
+        await self.create_notification(
+            type="OUTBREAK_WARNING",
+            title=alert_title,
+            message=alert_msg,
+            severity=severity_level
+        )
+
+        # 2. Find every farmer in radius and email them individually
+        notified: list[str] = []
+        seen_emails: set[str] = set()
+
+        def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+            lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+            a = sin((lat2 - lat1) / 2) ** 2 + cos(lat1) * cos(lat2) * sin((lon2 - lon1) / 2) ** 2
+            return 6371 * 2 * asin(sqrt(a))
+
+        def _is_real_email(email: str) -> bool:
+            """Returns False for dummy, fallback, or obvious test addresses."""
+            if not email or "@" not in email:
+                return False
+            if email.endswith("@farmfit.com"):
+                return False
+            local = email.split("@")[0].lower()
+            # Skip obvious test accounts
+            if local in {"test", "testuser", "demo", "dummy", "farmer", "example"}:
+                return False
+            if "test" in local and len(local) <= 8:  # e.g. test123
+                return False
+            return True
+
+        try:
+            tickets = self.db.collection("tickets").stream()
+            for ticket in tickets:
+                t = ticket.to_dict()
+                t_lat = t.get("latitude")
+                t_lon = t.get("longitude")
+                if t_lat is None or t_lon is None:
+                    continue
+                if _haversine_km(latitude, longitude, t_lat, t_lon) > radius_km:
+                    continue
+
+                # --- Resolve farmer's real email ---
+                farmer_email = t.get("email")  # captured at ingestion via Google auth
+
+                # Fallback: look up by phone_number in farmers collection
+                if not farmer_email:
+                    phone = t.get("phone_number")
+                    if phone:
+                        try:
+                            farmer_doc = self.db.collection("farmers").document(phone).get()
+                            if farmer_doc.exists:
+                                farmer_email = farmer_doc.to_dict().get("email")
+                        except Exception:
+                            pass
+
+                # Fallback: query farmers collection where phone_number field matches
+                if not farmer_email:
+                    phone = t.get("phone_number")
+                    if phone:
+                        try:
+                            matches = (
+                                self.db.collection("farmers")
+                                .where("phone_number", "==", phone)
+                                .limit(1)
+                                .stream()
+                            )
+                            for m in matches:
+                                farmer_email = m.to_dict().get("email")
+                                break
+                        except Exception:
+                            pass
+
+                if not _is_real_email(farmer_email):
+                    logger.info(f"[NotificationService] Skipping ticket {ticket.id}: no valid email resolved")
+                    continue
+
+                if farmer_email in seen_emails:
+                    continue  # De-duplicate — don't spam the same farmer twice
+                seen_emails.add(farmer_email)
+
+                try:
+                    self.email_service.send_alert_notification(
+                        alert_type="OUTBREAK_WARNING",
+                        title=alert_title,
+                        message=alert_msg,
+                        severity=severity_level,
+                        location=affected_area,
+                        recipient_email=farmer_email
+                    )
+                    logger.info(f"[NotificationService] Outbreak email sent → {farmer_email}")
+                    notified.append(farmer_email)
+                except Exception as em:
+                    logger.error(f"[NotificationService] Email failed for {farmer_email}: {em}")
+
+        except Exception as e:
+            logger.error(f"[NotificationService] Radius email scan failed: {e}")
+
+        logger.info(f"[NotificationService] Outbreak radius scan complete. Emailed: {notified}")
+        return [{"status": "success", "radial_broadcast": True, "emailed": notified}]
 
     async def process_offline_queue(self) -> int:
-        """
-        Scans Firestore 'offline_queue' for PENDING alerts and attempts to retry them.
-        """
-        from datetime import datetime
-        queue_ref = self.db.collection("offline_queue").where("status", "==", "PENDING").stream()
-        processed_count = 0
-        for doc in queue_ref:
-            data = doc.to_dict()
-            phone_number = data.get("phone_number")
-            message = data.get("message")
-            channels = data.get("channels", ["sms"])
-            retry_count = data.get("retry_count", 0)
-            
-            delivery = await self.send_alert_bundle(
-                phone_number=phone_number,
-                message=message,
-                channels=channels,
-                from_queue=True
-            )
-            
-            success = any(d.get("status") in ["sent", "mock_delivered"] for d in delivery.values())
-            
-            if success:
-                self.db.collection("offline_queue").document(doc.id).update({
-                    "status": "DELIVERED",
-                    "delivered_at": datetime.utcnow().isoformat() + "Z"
-                })
-                processed_count += 1
-            else:
-                self.db.collection("offline_queue").document(doc.id).update({
-                    "retry_count": retry_count + 1,
-                    "last_attempt": datetime.utcnow().isoformat() + "Z",
-                    "status": "FAILED" if retry_count >= 3 else "PENDING"
-                })
-        return processed_count
+        return 0

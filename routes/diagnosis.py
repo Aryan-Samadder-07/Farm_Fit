@@ -1,6 +1,8 @@
-from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, status
+from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, status, BackgroundTasks
 from typing import Optional, List
 import base64
+import logging
+logger = logging.getLogger(__name__)
 from google.cloud import firestore
 from services.diagnosis_service import DiagnosisService
 from services.translation_service import TranslationService
@@ -18,6 +20,8 @@ async def diagnose_crop_endpoint(
     village_name: Optional[str] = Form(None),
     latitude: Optional[float] = Form(None),
     longitude: Optional[float] = Form(None),
+    email: Optional[str] = Form(None),
+    background_tasks: BackgroundTasks = None,
     db: firestore.Client = Depends(get_db)
 ):
     """
@@ -85,6 +89,8 @@ async def diagnose_crop_endpoint(
         }
         if phone_number:
             ticket_payload["phone_number"] = phone_number
+        if email:
+            ticket_payload["email"] = email
         if village_name:
             ticket_payload["village_name"] = village_name
         if latitude is not None:

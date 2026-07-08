@@ -29,12 +29,17 @@ export default function Navbar() {
     return () => clearInterval(interval);
   }, []);
 
-  // Poll unread notification count every 60s (only for professionals)
+  // Poll unread notification count every 60s (for all logged-in users, targeted by phone)
   useEffect(() => {
-    if (!user || user.role !== 'PROFESSIONAL') return;
+    if (!user) return;
     const fetchUnread = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/v1/notifications?unread_only=true&limit=50`);
+        let url = `${API_BASE_URL}/api/v1/notifications?unread_only=true&limit=50`;
+        const email = user.email;
+        if (email) {
+          url += `&email=${encodeURIComponent(email)}`;
+        }
+        const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();
           setUnreadCount(data.unread || 0);
@@ -139,8 +144,8 @@ export default function Navbar() {
             </div>
           )}
 
-          {/* Notification Bell (Professionals only) */}
-          {user && user.role === 'PROFESSIONAL' && (
+          {/* Notification Bell (All logged-in users) */}
+          {user && (
             <Link href="/notifications"
               className={`relative flex items-center gap-1.5 border px-2.5 py-1.5 rounded-lg transition cursor-pointer ${
                 pathname === '/notifications'

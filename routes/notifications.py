@@ -9,11 +9,12 @@ router = APIRouter(prefix="/api/v1/notifications", tags=["Notification Queue"])
 @router.get("")
 async def get_notifications(
     unread_only: bool = Query(False, description="Return only unread/undelivered alerts"),
-    limit: int = Query(50, ge=1, le=200)
+    limit: int = Query(50, ge=1, le=200),
+    email: Optional[str] = Query(None, description="Optional email to filter alerts targeted to a user")
 ):
     try:
         service = NotificationService()
-        notifications = await service.get_notifications(limit=limit, unread_only=unread_only)
+        notifications = await service.get_notifications(limit=limit, unread_only=unread_only, email=email)
         unread_count = sum(1 for n in notifications if not n["delivered"])
         return {"notifications": notifications, "total": len(notifications), "unread": unread_count}
     except Exception as e:

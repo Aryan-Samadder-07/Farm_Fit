@@ -70,11 +70,8 @@ export default function GISMapPage() {
         body: JSON.stringify({
           disease_name: regDisease,
           crop_type: regCrop,
-          affected_farmer_count: parseInt(regFarmerCount) || 1,
           latitude: regLat,
           longitude: regLon,
-          district: regDistrict || 'Unknown District',
-          village: regVillage || 'Unknown Village',
           reported_by: regReportedBy || 'RSK Expert',
           notes: regNotes
         })
@@ -349,25 +346,6 @@ export default function GISMapPage() {
                             className="w-full bg-white border border-slate-300 focus:border-slate-500 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none transition cursor-pointer">
                             {CROP_OPTIONS.map(c => <option key={c}>{c}</option>)}
                           </select>
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Farmers Affected</label>
-                          <input type="number" min="1" value={regFarmerCount} onChange={e => setRegFarmerCount(e.target.value)}
-                            className="w-full bg-white border border-slate-300 focus:border-slate-500 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none transition" required />
-                        </div>
-                      </div>
-
-                      {/* Location fields */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">District</label>
-                          <input type="text" placeholder="e.g. SPSR Nellore" value={regDistrict} onChange={e => setRegDistrict(e.target.value)}
-                            className="w-full bg-white border border-slate-300 focus:border-slate-500 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none transition" />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Village / Mandal</label>
-                          <input type="text" placeholder="e.g. Kovur Mandal" value={regVillage} onChange={e => setRegVillage(e.target.value)}
-                            className="w-full bg-white border border-slate-300 focus:border-slate-500 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none transition" />
                         </div>
                       </div>
 

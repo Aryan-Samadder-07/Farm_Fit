@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import {
   Bell, BellOff, CheckCheck, RefreshCw, AlertTriangle, AlertCircle,
@@ -18,6 +20,8 @@ interface Notification {
   created_at: string;
   delivered: boolean;
   email_sent?: boolean;
+  ticket_id?: string;
+  email?: string;
 }
 
 const typeConfig: Record<string, { icon: any; color: string; bg: string; border: string }> = {
@@ -47,11 +51,14 @@ function timeAgo(dateStr: string): string {
 }
 
 export default function NotificationsPage() {
+  const router = useRouter();
+  const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
 
   // ── Test email panel state ────────────────────────────────────────────────
   const [showEmailPanel, setShowEmailPanel] = useState(false);
@@ -65,7 +72,12 @@ export default function NotificationsPage() {
   const fetchNotifications = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/notifications?unread_only=${showUnreadOnly}&limit=50`);
+      const email = user?.email;
+      let url = `${API_BASE_URL}/api/v1/notifications?unread_only=${showUnreadOnly}&limit=50`;
+      if (email) {
+        url += `&email=${encodeURIComponent(email)}`;
+      }
+      const res = await fetch(url);
       const data = await res.json();
       setNotifications(data.notifications || []);
       setUnreadCount(data.unread || 0);
@@ -74,7 +86,7 @@ export default function NotificationsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [showUnreadOnly]);
+  }, [showUnreadOnly, user]);
 
   useEffect(() => { fetchNotifications(); }, [fetchNotifications]);
 
@@ -317,9 +329,14 @@ export default function NotificationsPage() {
               const Icon = cfg.icon;
               return (
                 <div key={n.id}
-                  onClick={() => !n.delivered && markRead(n.id)}
-                  className={`relative flex gap-4 p-4 rounded-2xl border transition group bg-white border-slate-200 shadow-sm ${
-                    !n.delivered ? 'cursor-pointer hover:bg-slate-50/50' : 'opacity-60'
+                  onClick={async () => {
+                    if (!n.delivered) {
+                      await markRead(n.id);
+                    }
+                    setSelectedNotification(n);
+                  }}
+                  className={`relative flex gap-4 p-4 rounded-2xl border transition group bg-white border-slate-200 shadow-sm cursor-pointer hover:bg-slate-50/50 ${
+                    n.delivered ? 'opacity-60' : ''
                   }`}>
 
                   {/* Unread dot */}
@@ -353,6 +370,70 @@ export default function NotificationsPage() {
                 </div>
               );
             })}
+          </div>
+        )}
+        {/* Notification Detail Modal popup */}
+        {selectedNotification && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white border border-slate-200 rounded-3xl max-w-2xl w-full p-8 shadow-xl space-y-6 transform scale-100 transition duration-300">
+              <div className="flex items-start justify-between">
+                <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border ${
+                  typeConfig[selectedNotification.type]?.bg || 'bg-slate-50'
+                } ${
+                  typeConfig[selectedNotification.type]?.border || 'border-slate-100'
+                } ${
+                  typeConfig[selectedNotification.type]?.color || 'text-slate-600'
+                }`}>
+                  {selectedNotification.type.replace(/_/g, ' ')}
+                </span>
+                <button 
+                  onClick={() => setSelectedNotification(null)}
+                  className="text-slate-400 hover:text-slate-600 transition p-1 hover:bg-slate-50 rounded-lg cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="text-lg sm:text-xl font-bold text-slate-800 leading-snug">
+                  {selectedNotification.title}
+                </h3>
+                <p className="text-xs text-slate-400">
+                  {timeAgo(selectedNotification.created_at)}
+                </p>
+              </div>
+
+              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 text-sm sm:text-base text-slate-700 leading-relaxed max-h-96 overflow-y-auto whitespace-pre-line font-medium">
+                {selectedNotification.message}
+              </div>
+
+              <div className="flex justify-end gap-2.5 pt-2">
+                {(() => {
+                  const match = selectedNotification.message.match(/\/review\/([a-zA-Z0-9_]+)/);
+                  const tId = selectedNotification.ticket_id || (match ? match[1] : null);
+                  if (tId) {
+                    return (
+                      <button
+                        onClick={() => {
+                          setSelectedNotification(null);
+                          router.push(`/review/${tId}`);
+                        }}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 py-3 rounded-xl text-xs sm:text-sm transition cursor-pointer shadow-sm"
+                      >
+                        View Ticket Details
+                      </button>
+                    );
+                  }
+                  return null;
+                })()}
+                <button
+                  onClick={() => setSelectedNotification(null)}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-5 py-3 rounded-xl text-xs sm:text-sm transition cursor-pointer"
+                >
+                  Close Alert
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </main>

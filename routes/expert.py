@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, BackgroundTasks
 from google.cloud import firestore
 from pydantic import BaseModel, Field
 from typing import List, Optional
@@ -167,10 +167,101 @@ async def get_single_ticket(ticket_id: str, db: firestore.Client = Depends(get_d
         )
 
 
+async def _trigger_farmer_notifications(
+    db: firestore.Client,
+    ticket_id: str,
+    ticket_doc: dict,
+    status_updated: bool,
+    expert_remediation: Optional[str],
+    on_hold_updated: bool,
+    assigned_to: Optional[str],
+    assigned_phone: Optional[str]
+):
+    try:
+        farmer_phone = ticket_doc.get("phone_number")
+        farmer_name = ticket_doc.get("farmer_name") or "Farmer"
+        crop_type = ticket_doc.get("crop_type") or "Crop"
+        
+        # Lookup farmer email from database
+        farmer_email = ticket_doc.get("email")
+        if not farmer_email and farmer_phone:
+            try:
+                farmer_ref = db.collection("farmers").document(farmer_phone).get()
+                if farmer_ref.exists:
+                    farmer_email = farmer_ref.to_dict().get("email")
+            except Exception as lookup_err:
+                print(f"[Notifications] Farmer email lookup failed: {lookup_err}")
+        
+        from services.notification_service import NotificationService
+        notifier = NotificationService(db)
+
+        # 1. Expert Response / Status Notification
+        if (expert_remediation is not None) or status_updated:
+            lang = ticket_doc.get("language_code") or ticket_doc.get("detected_language")
+            if not lang:
+                # Detect the language from the problem transcript on the fly
+                transcript = ticket_doc.get("problem_transcript") or ticket_doc.get("voice_transcript") or ""
+                from services.translation_service import TranslationService
+                ts = TranslationService()
+                lang = ts.detect_language(transcript)
+            lang_prefix = lang.split("-")[0] if lang else "en"
+            
+            remediation_text = expert_remediation or "Your advisory report has been reviewed."
+            
+            raw_msg = (
+                f"Dear {farmer_name},\n\n"
+                f"An RSK expert has completed the review of your crop diagnosis request for '{crop_type}'.\n\n"
+                f"Expert Advisory / Recommendation:\n"
+                f"{remediation_text}\n\n"
+                f"Best regards,\n"
+                f"Rythu Seva Kendra (RSK) Team"
+            )
+            
+            from services.translation_service import TranslationService
+            translator = TranslationService()
+            localized_msg = raw_msg
+            if lang_prefix != "en":
+                localized_msg = translator.translate_from_english(raw_msg, target_language=lang_prefix)
+                
+            await notifier.create_notification(
+                type="EXPERT_ADVISORY",
+                title=f"Expert Response: {crop_type}",
+                message=localized_msg,
+                severity="HIGH",
+                ticket_id=ticket_id,
+                email=farmer_email
+            )
+
+        # 2. Hold for On-Site Notification
+        if on_hold_updated:
+            expert_name = assigned_to or ticket_doc.get("assigned_to") or "RSK Expert"
+            expert_phone = assigned_phone or ticket_doc.get("assigned_phone") or "Rythu Seva Kendra"
+            
+            notification_message = (
+                f"Dear {farmer_name},\n\n"
+                f"An RSK expert field visit has been scheduled for your farm in the next 24 hours regarding your '{crop_type}' request.\n\n"
+                f"Please contact RSK Expert {expert_name} at {expert_phone} to coordinate the exact time and location.\n\n"
+                f"Best regards,\n"
+                f"Rythu Seva Kendra (RSK) Team"
+            )
+            
+            await notifier.create_notification(
+                type="ON_SITE_VISIT",
+                title=f"On-Site Field Visit Scheduled - {crop_type}",
+                message=notification_message,
+                severity="HIGH",
+                ticket_id=ticket_id,
+                email=farmer_email
+            )
+    except Exception as e:
+        print(f"[BackgroundTasks] Expert notification dispatch failed: {e}")
+
+
 @router.patch("/tickets/{ticket_id}", response_model=dict)
 async def update_ticket_resolution(
     ticket_id: str, 
     payload: TicketUpdatePayload, 
+    background_tasks: BackgroundTasks,
     db: firestore.Client = Depends(get_db)
 ):
     """
@@ -217,100 +308,20 @@ async def update_ticket_resolution(
         
         ticket_ref.update(update_data)
 
-        # Trigger farmer notification if expert remediation/advice is provided or ticket status is updated
-        if (payload.expert_remediation is not None) or (payload.status is not None):
-            ticket_doc = doc.to_dict() or {}
-            farmer_phone = ticket_doc.get("phone_number")
-            farmer_name = ticket_doc.get("farmer_name") or "Farmer"
-            crop_type = ticket_doc.get("crop_type") or "Crop"
-            
-            lang = ticket_doc.get("language_code", "hi-IN")
-            lang_prefix = lang.split("-")[0]
-            
-            remediation_text = payload.expert_remediation or "Your advisory report has been reviewed."
-            preview = remediation_text[:60] + "..." if len(remediation_text) > 60 else remediation_text
-            
-            advisory_url = f"http://localhost:3000/review/{ticket_id}"
-            
-            raw_msg = (
-                f"Dear {farmer_name}, an RSK expert has responded to your report for {crop_type}. "
-                f"Advice: {preview} "
-                f"You can view the full advisory here: {advisory_url}"
+        # Trigger farmer notifications only on explicit resolutions or hold-for-visit scheduling
+        should_notify = (payload.expert_remediation is not None) or (payload.status == "RESOLVED") or (payload.on_hold is True)
+        if should_notify:
+            background_tasks.add_task(
+                _trigger_farmer_notifications,
+                db=db,
+                ticket_id=ticket_id,
+                ticket_doc=doc.to_dict() or {},
+                status_updated=(payload.status == "RESOLVED"),
+                expert_remediation=payload.expert_remediation,
+                on_hold_updated=(payload.on_hold is True),
+                assigned_to=payload.assigned_to,
+                assigned_phone=payload.assigned_phone
             )
-            
-            from services.translation_service import TranslationService
-            translator = TranslationService()
-            localized_msg = raw_msg
-            if lang_prefix != "en":
-                localized_msg = translator.translate_from_english(raw_msg, target_language=lang_prefix)
-                
-            from services.notification_service import NotificationService
-            notifier = NotificationService(db)
-            if farmer_phone:
-                await notifier.send_alert_bundle(
-                    phone_number=farmer_phone,
-                    message=localized_msg,
-                    channels=["sms", "whatsapp"]
-                )
-                
-                push_id = f"push_expert_{ticket_id}_{int(datetime.datetime.utcnow().timestamp())}"
-                push_data = {
-                    "id": push_id,
-                    "farmer_phone": farmer_phone,
-                    "title": "📋 Expert Advisory Update Available",
-                    "message": localized_msg,
-                    "severity": "HIGH",
-                    "priority": "HIGH",
-                    "created_at": datetime.datetime.utcnow().isoformat() + "Z",
-                    "status": "DELIVERED",
-                    "advisory_url": advisory_url
-                }
-                db.collection("push_notifications").document(push_id).set(push_data)
-                
-                db.collection("alerts").add({
-                    "type": "EXPERT_ADVISORY",
-                    "title": f"Expert Response: {crop_type}",
-                    "message": localized_msg,
-                    "severity": "HIGH",
-                    "created_at": datetime.datetime.utcnow().isoformat() + "Z",
-                    "delivered": False
-                })
-
-        # Trigger farmer notification if ticket is placed on hold for on-site visit
-        if payload.on_hold is True:
-            ticket_doc = doc.to_dict() or {}
-            farmer_phone = ticket_doc.get("phone_number")
-            farmer_name = ticket_doc.get("farmer_name") or "Farmer"
-            
-            expert_name = payload.assigned_to or ticket_doc.get("assigned_to") or "RSK Expert"
-            expert_phone = payload.assigned_phone or ticket_doc.get("assigned_phone") or "Rythu Seva Kendra"
-            
-            # Format requirements: "RSK expert visit in next 24 hours", "contact RSK expert to fix the time and location"
-            notification_message = (
-                f"Dear {farmer_name}, an RSK expert visit has been scheduled for your farm in the next 24 hours. "
-                f"Please contact RSK expert {expert_name} at {expert_phone} to fix the exact time and location."
-            )
-            
-            # Send Twilio SMS and WhatsApp (mock or real)
-            from services.notification_service import NotificationService
-            notifier = NotificationService(db)
-            if farmer_phone:
-                await notifier.send_alert_bundle(
-                    phone_number=farmer_phone,
-                    message=notification_message,
-                    channels=["sms", "whatsapp"]
-                )
-            
-            # Store in-app alert for the farmer
-            alerts_ref = db.collection("alerts")
-            alerts_ref.add({
-                "type": "ON_SITE_VISIT",
-                "title": f"On-Site Field Visit Scheduled - {ticket_doc.get('crop_type', 'Crop')}",
-                "message": notification_message,
-                "severity": "HIGH",
-                "created_at": datetime.datetime.utcnow().isoformat() + "Z",
-                "delivered": False
-            })
 
         return {
             "status": "success", 

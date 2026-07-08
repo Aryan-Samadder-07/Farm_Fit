@@ -185,9 +185,10 @@ export default function DiagnosePage() {
     formData.append("crop_type", cropType || "Unknown");
     formData.append("problem_transcript", problemTranscript);
     
-    // Auto-attach logged-in farmer coordinates if available
+    // Auto-attach logged-in farmer details if available
     if (user?.phone_number) formData.append("phone_number", user.phone_number);
     if (user?.village_name) formData.append("village_name", user.village_name);
+    if (user?.email) formData.append("email", user.email);
     
     // Append multiple files to "images" parameter key
     selectedImages.forEach((imgFile) => {
