@@ -81,7 +81,7 @@ class SatelliteService:
             "longitude": lon,
             "start_date": start_date.isoformat(),
             "end_date": today.isoformat(),
-            "daily": "soil_moisture_0_to_7cm_mean,temperature_2m_mean",
+            "daily": "soil_moisture_0_to_7cm_mean,temperature_2m_mean,wind_speed_10m_max",
             "timezone": "auto"
         }
         
@@ -94,6 +94,7 @@ class SatelliteService:
                     dates = daily.get("time", [])
                     moisture = daily.get("soil_moisture_0_to_7cm_mean", [])
                     temp = daily.get("temperature_2m_mean", [])
+                    winds = daily.get("wind_speed_10m_max", [])
                     
                     # Aggregate values by month
                     monthly_data = {}
@@ -103,22 +104,27 @@ class SatelliteService:
                         
                         m_val = moisture[i] if i < len(moisture) and moisture[i] is not None else 0.25
                         t_val = temp[i] if i < len(temp) and temp[i] is not None else 28.0
+                        w_val = winds[i] if i < len(winds) and winds[i] is not None else 12.0
                         
                         if month_name not in monthly_data:
-                            monthly_data[month_name] = {"moisture": [], "temp": []}
+                            monthly_data[month_name] = {"moisture": [], "temp": [], "winds": []}
                         
                         monthly_data[month_name]["moisture"].append(m_val)
                         monthly_data[month_name]["temp"].append(t_val)
+                        monthly_data[month_name]["winds"].append(w_val)
                     
                     timeline = []
                     for month, vals in monthly_data.items():
                         avg_moisture = sum(vals["moisture"]) / len(vals["moisture"])
                         avg_temp = sum(vals["temp"]) / len(vals["temp"])
+                        max_wind = max(vals["winds"])
                         
                         # Compute NDVI: higher moisture + moderate temperature yields higher greenness index (NDVI)
-                        # NDVI typically ranges between 0.15 (dry/bare soil) and 0.85 (highly active crops)
+                        # High wind speed (storms/cyclones) causes canopy tearing/lodging, which lowers crop greenness (NDVI)
                         temp_factor = max(0.0, 1.0 - abs(avg_temp - 25.0) / 20.0) # Peaks near 25C
-                        ndvi_val = 0.15 + (avg_moisture * 1.2) + (temp_factor * 0.15)
+                        wind_damage_factor = max(0.0, (max_wind - 50.0) / 100.0) if max_wind > 50.0 else 0.0
+                        
+                        ndvi_val = 0.15 + (avg_moisture * 1.2) + (temp_factor * 0.15) - (wind_damage_factor * 0.3)
                         ndvi_val = round(min(max(ndvi_val, 0.15), 0.85), 2)
                         
                         timeline.append({"val": ndvi_val, "month": month})

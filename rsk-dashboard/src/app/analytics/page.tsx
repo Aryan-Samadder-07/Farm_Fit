@@ -38,7 +38,7 @@ export default function AnalyticsPage() {
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col">
       <Navbar />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow">
+      <main className="w-full px-4 sm:px-6 lg:px-8 py-8 flex-grow">
         <div className="space-y-8">
           {/* Search and Query Row */}
           <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">

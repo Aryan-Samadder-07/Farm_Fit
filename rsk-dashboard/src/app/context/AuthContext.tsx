@@ -90,6 +90,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Admin has universal access
         return;
       }
+
+      // Universal routes accessible to any logged-in user
+      const isUniversal = pathname === '/notifications';
+      if (isUniversal) {
+        return;
+      }
       
       if (user.role === 'FARMER') {
         const allowed = ['/diagnose', '/agronomy', '/knowledge', '/gis'];
@@ -103,8 +109,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             router.push('/analytics');
           }
         } else if (designation === 'RSK EXPERT') {
+          // Allow the base path, GIS, Analytics, RAG search, and review console pages
+          const isReviewPage = pathname.startsWith('/review/');
           const allowed = ['/', '/gis', '/analytics', '/knowledge'];
-          if (!allowed.includes(pathname)) {
+          if (!allowed.includes(pathname) && !isReviewPage) {
             router.push('/');
           }
         } else if (designation === 'MANDI HEAD') {

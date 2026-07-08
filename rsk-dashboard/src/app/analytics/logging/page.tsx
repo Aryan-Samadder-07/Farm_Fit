@@ -79,7 +79,7 @@ export default function AnalyticsLoggingPage() {
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col">
       <Navbar />
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 flex-grow relative z-10">
+      <main className="w-full px-4 sm:px-6 lg:px-8 py-10 flex-grow relative z-10">
 
         <div className="space-y-8 relative z-20">
           

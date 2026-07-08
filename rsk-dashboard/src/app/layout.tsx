@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Kisan Alert - Rythu Seva Kendras (RSK) Dashboard",
+  title: "Farm Fit - National Agricultural Intelligence Platform",
   description: "Real-time AI-driven agricultural platform and expert panel for crop disease remediation.",
 };
 

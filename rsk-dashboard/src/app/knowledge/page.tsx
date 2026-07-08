@@ -159,19 +159,14 @@ export default function KnowledgePage() {
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col">
       <Navbar />
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 flex-grow w-full space-y-8">
+      <main className="w-full px-4 sm:px-6 lg:px-8 py-10 flex-grow space-y-8">
 
         {/* Intro */}
         <div className="text-center space-y-3">
           <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-slate-700 mx-auto border border-slate-200 shadow-xs">
             <Database className="h-6 w-6" />
           </div>
-          <h2 className="text-2xl font-black tracking-tight text-slate-900">Agricultural RAG Search Engine</h2>
-          <p className="text-sm text-slate-500 font-medium max-w-lg mx-auto">
-            Search anything — crop diseases, government schemes, MSP prices, soil science, pest control.
-            Live web results via Gemini grounding&nbsp;+&nbsp;verified local knowledge base.
-            Supports voice input in local languages.
-          </p>
+          <h2 className="text-2xl font-black tracking-tight text-slate-900">Krishi Search</h2>
         </div>
 
         {/* Language + Search bar */}

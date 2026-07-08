@@ -128,6 +128,7 @@ export default function NotificationsPage() {
           message: testMessage,
           location: testLocation,
           severity: testAlertType.includes('OUTBREAK') || testAlertType === 'DRY_SPELL' ? 'CRITICAL' : 'HIGH',
+          recipient_email: user?.email || '',
         }),
       });
       const data = await res.json();
@@ -147,7 +148,7 @@ export default function NotificationsPage() {
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col">
       <Navbar />
 
-      <main className="max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 space-y-6 flex-grow">
+      <main className="w-full px-4 sm:px-6 lg:px-8 py-8 space-y-6 flex-grow">
 
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">

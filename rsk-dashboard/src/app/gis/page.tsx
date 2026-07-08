@@ -217,7 +217,7 @@ export default function GISMapPage() {
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col">
       <Navbar />
 
-      <main className="flex-grow flex flex-col max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 gap-6">
+      <main className="flex-grow flex flex-col w-full px-4 sm:px-6 lg:px-8 py-8 gap-6">
 
         {/* Header Row */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">

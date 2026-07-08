@@ -116,7 +116,7 @@ export default function AgronomyPage() {
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col">
       <Navbar />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow flex flex-col items-center justify-start">
+      <main className="w-full px-4 sm:px-6 lg:px-8 py-8 flex-grow flex flex-col items-center justify-start">
         
         {isEditing ? (
           // Center-aligned Input Form

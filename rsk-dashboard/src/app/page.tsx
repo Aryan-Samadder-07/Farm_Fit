@@ -154,7 +154,7 @@ export default function RSKDashboard() {
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col">
       <Navbar />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 flex-grow">
+      <main className="w-full px-4 sm:px-6 lg:px-8 py-8 space-y-6 flex-grow">
 
         {/* Toolbar */}
         <div className="flex justify-end gap-2">
@@ -162,11 +162,6 @@ export default function RSKDashboard() {
             className="flex items-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 font-semibold px-4 py-2 rounded-lg text-xs transition cursor-pointer shadow-xs">
             <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh
-          </button>
-          <button onClick={handleGenerateMockTicket}
-            className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-lg text-xs transition shadow-xs cursor-pointer active:scale-95">
-            <Sparkles className="h-3.5 w-3.5" />
-            Simulate Farmer Alert
           </button>
         </div>
 
@@ -208,8 +203,11 @@ export default function RSKDashboard() {
         </section>
 
         {/* Ticket List Queue */}
-        <section className="max-w-3xl mx-auto space-y-3">
-          <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Active Ticket Queue</h3>
+        <section className="w-full space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Active Ticket Queue</h3>
+            <span className="text-xs text-slate-400 font-medium">Showing {filteredTickets.length} active ticket(s)</span>
+          </div>
 
           {isLoading ? (
             <div className="text-center py-16 text-slate-400 text-sm">
@@ -217,53 +215,89 @@ export default function RSKDashboard() {
               Loading active tickets...
             </div>
           ) : filteredTickets.length > 0 ? (
-            filteredTickets.map(ticket => {
-              const status = ticket.status || 'PENDING';
-              const severity = ticket.severity_level || 'LOW';
-              return (
-                <div key={ticket.id}
-                  onClick={() => handleSelectTicket(ticket)}
-                  className="bg-white border border-slate-200 p-5 rounded-xl cursor-pointer hover:border-slate-400 hover:shadow-sm transition relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group"
-                >
-                  <div className="space-y-2 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
-                        severity === 'HIGH' ? 'bg-rose-50 text-rose-600 border-rose-200' :
-                        severity === 'MEDIUM' ? 'bg-amber-50 text-amber-600 border-amber-200' :
-                        'bg-emerald-50 text-emerald-600 border-emerald-200'
-                      }`}>{severity} SEVERITY</span>
-                      <span className="text-slate-500 text-xs font-semibold">{ticket.crop_type || 'Unknown Crop'}</span>
-                      {ticket.on_hold && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded border bg-amber-50 text-amber-600 border-amber-200">
-                          ON-SITE VISIT
-                        </span>
-                      )}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {filteredTickets.map(ticket => {
+                const status = ticket.status || 'PENDING';
+                const severity = ticket.severity_level || 'LOW';
+                
+                const severityLBorder = 
+                  severity === 'HIGH' ? 'border-l-rose-500' :
+                  severity === 'MEDIUM' ? 'border-l-amber-500' :
+                  'border-l-emerald-500';
+
+                return (
+                  <div key={ticket.id}
+                    onClick={() => handleSelectTicket(ticket)}
+                    className={`bg-white border border-slate-200 border-l-4 ${severityLBorder} p-6 rounded-2xl cursor-pointer hover:border-slate-400 hover:shadow-md hover:scale-[1.01] transition duration-200 relative flex flex-col justify-between gap-4 group`}
+                  >
+                    <div className="space-y-3 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full border tracking-wide ${
+                          severity === 'HIGH' ? 'bg-rose-50 text-rose-600 border-rose-200' :
+                          severity === 'MEDIUM' ? 'bg-amber-50 text-amber-600 border-amber-200' :
+                          'bg-emerald-50 text-emerald-600 border-emerald-200'
+                        }`}>{severity} SEVERITY</span>
+                        
+                        <span className={`text-[9px] font-extrabold px-2.5 py-1 rounded-full border tracking-wide uppercase shrink-0 ${
+                          status === 'RESOLVED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                          status === 'IN_PROGRESS' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                          'bg-rose-50 text-rose-750 border-rose-250'
+                        }`}>{ticket.on_hold ? 'ON HOLD' : status.replace('_', ' ')}</span>
+                      </div>
+
+                      <div className="space-y-1">
+                        <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">{ticket.crop_type || 'Unknown Crop'}</p>
+                        <h4 className="text-base font-extrabold text-slate-800 tracking-tight leading-snug group-hover:text-slate-900 transition">
+                          {ticket.disease_name || 'Unknown Disease'}
+                        </h4>
+                        {ticket.confidence !== undefined && (
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <Sparkles className="h-3 w-3 text-indigo-500" />
+                            <span className="text-[11px] text-slate-400 font-medium">
+                              {Math.round(ticket.confidence * 100)}% AI confidence
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="border-t border-slate-100 my-2 pt-3 space-y-2">
+                        <div className="flex items-center gap-2 text-xs text-slate-600 font-medium">
+                          <User className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                          <span className="truncate">{ticket.farmer_name || 'Anonymous Farmer'}</span>
+                        </div>
+                        {ticket.village_name && (
+                          <div className="flex items-center gap-2 text-xs text-slate-500">
+                            <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                            <span className="truncate">{ticket.village_name}</span>
+                          </div>
+                        )}
+                        {ticket.phone_number && (
+                          <div className="flex items-center gap-2 text-xs text-slate-500">
+                            <Phone className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                            <span className="truncate">{ticket.phone_number}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <h4 className="text-sm font-bold text-slate-800 truncate">
-                      {ticket.disease_name || 'Unknown Disease'}{' '}
-                      {ticket.confidence !== undefined && (
-                        <span className="text-xs text-slate-400 font-normal">({Math.round(ticket.confidence * 100)}% AI confidence)</span>
+
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 border-t border-slate-50 pt-2 font-medium">
+                      {ticket.created_at ? (
+                        <span>Submitted: {new Date(ticket.created_at).toLocaleDateString()}</span>
+                      ) : (
+                        <span />
                       )}
-                    </h4>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
-                      <span className="flex items-center gap-1"><User className="h-3.5 w-3.5" />{ticket.farmer_name || 'Anonymous'}</span>
-                      {ticket.created_at && (
-                        <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />
-                          {new Date(ticket.created_at).toLocaleDateString()}
+                      {ticket.on_hold && (
+                        <span className="font-extrabold text-amber-600 uppercase tracking-wide bg-amber-50 px-2 py-0.5 rounded border border-amber-100">
+                          Requires Site Visit
                         </span>
                       )}
                     </div>
                   </div>
-                  <span className={`text-[10px] font-bold px-3 py-1.5 rounded-lg border shrink-0 ${
-                    status === 'RESOLVED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                    status === 'IN_PROGRESS' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                    'bg-rose-50 text-rose-700 border-rose-200'
-                  }`}>{ticket.on_hold ? 'ON HOLD' : status}</span>
-                </div>
-              );
-            })
+                );
+              })}
+            </div>
           ) : (
-            <div className="text-center py-20 bg-white border border-slate-200 border-dashed rounded-xl">
+            <div className="text-center py-20 bg-white border border-slate-200 border-dashed rounded-2xl">
               <Sprout className="h-10 w-10 text-slate-300 mx-auto mb-3 stroke-1" />
               <h3 className="text-base font-bold text-slate-400">No active tickets found</h3>
               <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">

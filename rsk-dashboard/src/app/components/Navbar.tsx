@@ -52,12 +52,12 @@ export default function Navbar() {
   }, [user]);
 
   const allItems = [
-    { name: 'RSK Expert Portal',    href: '/',              icon: Sprout },
-    { name: 'AI Disease Ingestion', href: '/diagnose',      icon: Sparkles },
+    { name: 'RSK Dashboard',        href: '/',              icon: Sprout },
+    { name: 'Report Disease',       href: '/diagnose',      icon: Sparkles },
     { name: 'Soil Advisory',        href: '/agronomy',      icon: Cpu },
     { name: 'Farm Analytics',       href: '/analytics',     icon: BarChart3 },
     { name: 'Analytics Logging',    href: '/analytics/logging', icon: Database },
-    { name: 'RAG Search',           href: '/knowledge',     icon: FileText },
+    { name: 'Krishi Search',        href: '/knowledge',     icon: FileText },
     { name: 'GIS Disease Map',      href: '/gis',           icon: Map },
     { name: 'Admin Dashboard',      href: '/admin',         icon: ShieldCheck },
   ];
@@ -93,42 +93,23 @@ export default function Navbar() {
 
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-40">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col md:flex-row items-center justify-between gap-3">
-
+      {/* Top Row: Brand & Status Profile */}
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between gap-3">
         {/* Brand */}
         <div className="flex items-center gap-3 shrink-0">
-          <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center">
-            <Sprout className="h-4 w-4 text-white" />
+          <div className="w-8.5 h-8.5 rounded-lg bg-slate-900 flex items-center justify-center">
+            <Sprout className="h-4.5 w-4.5 text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-bold tracking-tight text-slate-900 leading-tight">
-              Kisan Alert AI
+            <h1 className="text-base font-black tracking-tight text-slate-900 leading-tight">
+              Farm Fit
             </h1>
-            <p className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase hidden sm:block">National Agricultural Intelligence Platform</p>
+            <p className="text-[10px] text-slate-400 font-bold tracking-wider uppercase hidden sm:block">National Agricultural Intelligence Platform</p>
           </div>
         </div>
 
-        {/* Nav Links */}
-        <nav className="flex flex-wrap justify-center gap-0.5 my-1 md:my-0">
-          {navItems.map(({ name, href, icon: Icon }) => {
-            const isActive = pathname === href;
-            return (
-              <Link key={href} href={href}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-md transition duration-150 ${
-                  isActive
-                    ? 'bg-slate-900 text-white'
-                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
-                }`}>
-                <Icon className="h-3.5 w-3.5 shrink-0" />
-                <span>{name}</span>
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* Right-side: status + notification bell + User Profile */}
+        {/* Right-side status + user profile */}
         <div className="flex items-center gap-2 text-xs shrink-0">
-
           {/* User badge */}
           {user && (
             <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg text-[11px]">
@@ -181,8 +162,27 @@ export default function Navbar() {
               <span className="hidden md:inline">Logout</span>
             </button>
           )}
-
         </div>
+      </div>
+
+      {/* Bottom Row: Navigation Links */}
+      <div className="w-full border-t border-slate-100 bg-slate-50/50 px-4 sm:px-6 lg:px-8 py-2">
+        <nav className="flex flex-wrap items-center justify-center gap-3">
+          {navItems.map(({ name, href, icon: Icon }) => {
+            const isActive = pathname === href;
+            return (
+              <Link key={href} href={href}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition duration-150 ${
+                  isActive
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
+                }`}>
+                <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-indigo-400' : 'text-slate-400'}`} />
+                <span>{name}</span>
+              </Link>
+            );
+          })}
+        </nav>
       </div>
     </header>
   );

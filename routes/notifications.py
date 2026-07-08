@@ -57,6 +57,8 @@ async def send_test_alert_email(req: SendTestEmailRequest):
     Useful for verifying SMTP configuration and previewing alert email templates.
     """
     email_service = EmailService()
+    from config import settings
+    recipient = req.recipient_email or settings.SMTP_USERNAME
     try:
         success = email_service.send_alert_notification(
             alert_type=req.alert_type,
@@ -64,7 +66,7 @@ async def send_test_alert_email(req: SendTestEmailRequest):
             message=req.message,
             severity=req.severity,
             location=req.location or "",
-            recipient_email=req.recipient_email or "",
+            recipient_email=recipient,
         )
         if success:
             return {
